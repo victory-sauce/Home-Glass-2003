@@ -9,17 +9,24 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = "YOUR_SUPABASE_URL";
 const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    storage: localStorage,
-  },
-});
-
 export const isSupabaseConfigured =
   SUPABASE_URL !== "YOUR_SUPABASE_URL" &&
-  SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY";
+  SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY" &&
+  /^https?:\/\//.test(SUPABASE_URL);
+
+// Use safe placeholder values when not configured so createClient doesn't throw
+// at import time and crash the whole app. The UI shows a warning banner instead.
+export const supabase = createClient(
+  isSupabaseConfigured ? SUPABASE_URL : "https://placeholder.supabase.co",
+  isSupabaseConfigured ? SUPABASE_ANON_KEY : "placeholder-anon-key",
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    },
+  }
+);
 
 // ---- Domain types (best-guess from spec) ----
 export type RackName = "A" | "B" | "C" | "LEFTOVERS";
