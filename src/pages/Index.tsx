@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   supabase,
   isSupabaseConfigured,
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY,
   type GlassPiece,
   type RackName,
 } from "@/lib/supabase";
@@ -26,18 +24,13 @@ export default function Index() {
   const [pieces, setPieces] = useState<GlassPiece[]>([]);
   const [openOrders, setOpenOrders] = useState(0);
   const [loading, setLoading] = useState(true);
-
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [ordersError, setOrdersError] = useState<string | null>(null);
-  const [rawFetchResult, setRawFetchResult] = useState<string>("");
-  const [lastLoadedAt, setLastLoadedAt] = useState<string>("");
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setLoading(false);
-      setInventoryError(
-        "Supabase is not configured. Check src/lib/supabase.ts."
-      );
+      setInventoryError("Supabase is not configured. Check src/lib/supabase.ts.");
       return;
     }
 
@@ -52,20 +45,17 @@ export default function Index() {
         .order("rack", { ascending: true })
         .order("rack_order", { ascending: true });
 
-      console.log("glass_pieces data:", data);
-      console.log("glass_pieces error:", error);
-
       if (error) {
         setInventoryError(error.message);
         setPieces([]);
         toast.error(`Inventory error: ${error.message}`);
       } else {
         setPieces((data as GlassPiece[]) ?? []);
-        setLastLoadedAt(new Date().toLocaleTimeString());
       }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown inventory fetch error";
+
       setInventoryError(message);
       setPieces([]);
       toast.error(`Inventory error: ${message}`);
@@ -78,9 +68,6 @@ export default function Index() {
         .select("id", { count: "exact", head: true })
         .eq("status", "open");
 
-      console.log("orders count:", count);
-      console.log("orders error:", error);
-
       if (error) {
         setOrdersError(error.message);
       } else {
@@ -89,6 +76,7 @@ export default function Index() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown orders fetch error";
+
       setOrdersError(message);
       console.error("Orders count exception:", error);
     }
@@ -99,37 +87,6 @@ export default function Index() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const testRawRestFetch = async () => {
-    setRawFetchResult("Testing raw REST request...");
-
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/glass_pieces?select=code,width,height,thickness,glass_type,rack,rack_order,status&limit=3`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
-
-      const body = await response.text();
-
-      setRawFetchResult(
-        [
-          `Status: ${response.status} ${response.statusText}`,
-          "",
-          body,
-        ].join("\n")
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown raw fetch error";
-      setRawFetchResult(`ERROR: ${message}`);
-      console.error("Raw REST fetch error:", error);
-    }
-  };
 
   const byRack = useMemo(() => {
     const map: Record<RackName, GlassPiece[]> = {
@@ -148,20 +105,20 @@ export default function Index() {
     }
 
     for (const rack of Object.keys(map) as RackName[]) {
-      map[rack].sort(
-        (a, b) => (a.rack_order ?? 0) - (b.rack_order ?? 0)
-      );
+      map[rack].sort((a, b) => (a.rack_order ?? 0) - (b.rack_order ?? 0));
     }
 
     return map;
   }, [pieces]);
 
   const kpis = useMemo(() => {
-    const available = pieces.filter((piece) => piece.status === "available")
-      .length;
+    const available = pieces.filter(
+      (piece) => piece.status === "available"
+    ).length;
 
-    const reserved = pieces.filter((piece) => piece.status === "reserved")
-      .length;
+    const reserved = pieces.filter(
+      (piece) => piece.status === "reserved"
+    ).length;
 
     const leftovers = pieces.filter(
       (piece) =>
@@ -169,13 +126,10 @@ export default function Index() {
         piece.status === "available"
     ).length;
 
-    const broken = pieces.filter((piece) => piece.status === "broken").length;
-
     return {
       available,
       reserved,
       leftovers,
-      broken,
     };
   }, [pieces]);
 
@@ -199,15 +153,9 @@ export default function Index() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
-                Test mode: authentication disabled
-              </div>
-
-              <Button variant="outline" onClick={load} disabled={loading}>
-                {loading ? "Refreshing..." : "Refresh inventory"}
-              </Button>
-            </div>
+            <Button variant="outline" onClick={load} disabled={loading}>
+              {loading ? "Refreshing..." : "Refresh inventory"}
+            </Button>
           </div>
 
           {!isSupabaseConfigured && (
@@ -217,7 +165,7 @@ export default function Index() {
                 <div className="font-semibold">Supabase not configured</div>
                 <div className="text-sm">
                   Open <code>src/lib/supabase.ts</code> and paste your project
-                  URL and anon/publishable key.
+                  URL and anon public key.
                 </div>
               </div>
             </div>
@@ -276,77 +224,6 @@ export default function Index() {
           />
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-card">
-          <div className="mb-3 flex flex-col justify-between gap-3 md:flex-row md:items-center">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">
-                Inventory debug
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Use this while testing Supabase connection and inventory loading.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={load} disabled={loading}>
-                Reload Supabase data
-              </Button>
-
-              <Button variant="outline" onClick={testRawRestFetch}>
-                Test raw REST fetch
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl bg-muted p-3 text-sm">
-              <div className="font-semibold">Loaded pieces</div>
-              <div className="mt-1 text-2xl font-bold">{pieces.length}</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Last loaded: {lastLoadedAt || "not loaded yet"}
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-muted p-3 text-sm">
-              <div className="font-semibold">Supabase URL</div>
-              <div className="mt-1 break-all font-mono text-xs">
-                {SUPABASE_URL}
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-muted p-3 text-sm">
-              <div className="font-semibold">Key detected</div>
-              <div className="mt-1 font-mono text-xs">
-                {SUPABASE_ANON_KEY
-                  ? `${SUPABASE_ANON_KEY.slice(0, 24)}...`
-                  : "No key"}
-              </div>
-            </div>
-          </div>
-
-          {pieces[0] && (
-            <div className="mt-3">
-              <div className="mb-1 text-sm font-semibold">
-                First loaded piece
-              </div>
-              <pre className="max-h-56 overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
-                {JSON.stringify(pieces[0], null, 2)}
-              </pre>
-            </div>
-          )}
-
-          {rawFetchResult && (
-            <div className="mt-3">
-              <div className="mb-1 text-sm font-semibold">
-                Raw REST fetch result
-              </div>
-              <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
-                {rawFetchResult}
-              </pre>
-            </div>
-          )}
-        </section>
-
         <section>
           <NewOrderPanel pieces={pieces} onChange={load} />
         </section>
@@ -357,9 +234,7 @@ export default function Index() {
               <h2 className="text-2xl font-bold tracking-tight text-foreground">
                 Glass inventory
               </h2>
-              <p className="text-muted-foreground">
-                Visual rack overview
-              </p>
+              <p className="text-muted-foreground">Visual rack overview</p>
             </div>
 
             {loading && (
