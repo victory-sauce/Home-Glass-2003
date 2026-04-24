@@ -45,38 +45,8 @@ function rackTitle(rack: RackName | string) {
   return rack === "LEFTOVERS" ? "Leftovers" : `Rack ${rack}`;
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function getThumbnailSize(piece: GlassPiece) {
-  const width = Number(piece.width || 0);
-  const height = Number(piece.height || 0);
-
-  const maxW = 98;
-  const maxH = 64;
-
-  if (!width || !height) {
-    return {
-      width: 72,
-      height: 48,
-    };
-  }
-
-  const ratio = width / height;
-
-  let thumbWidth = maxW;
-  let thumbHeight = maxW / ratio;
-
-  if (thumbHeight > maxH) {
-    thumbHeight = maxH;
-    thumbWidth = maxH * ratio;
-  }
-
-  return {
-    width: clamp(thumbWidth, 44, maxW),
-    height: clamp(thumbHeight, 30, maxH),
-  };
+function normalizeRack(rack: RackName | string | null | undefined) {
+  return String(rack ?? "").toUpperCase();
 }
 
 function statusRowClass(status: string, isFront: boolean) {
@@ -96,6 +66,28 @@ function statusRowClass(status: string, isFront: boolean) {
   }
 }
 
+function getThumbnailClass(glassType: string) {
+  const type = glassType.toLowerCase();
+
+  if (type.includes("mirror")) {
+    return "border-slate-300 bg-gradient-to-br from-slate-50 via-white to-slate-300";
+  }
+
+  if (type.includes("tint")) {
+    return "border-slate-400 bg-gradient-to-br from-slate-200 via-slate-300 to-slate-400";
+  }
+
+  if (type.includes("temper")) {
+    return "border-blue-400 bg-gradient-to-br from-cyan-50 via-white to-blue-50";
+  }
+
+  if (type.includes("laminat")) {
+    return "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-cyan-50";
+  }
+
+  return "border-blue-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50";
+}
+
 function MiniGlassThumbnail({
   piece,
   isFront,
@@ -103,31 +95,40 @@ function MiniGlassThumbnail({
   piece: GlassPiece;
   isFront: boolean;
 }) {
-  const size = getThumbnailSize(piece);
-
   return (
-    <div className="flex w-[132px] shrink-0 items-center gap-2">
-      <div className="flex h-[86px] w-[116px] items-center justify-center">
-        <div
-          className={`relative rounded-md border-2 bg-gradient-to-br from-sky-50 via-white to-cyan-50 shadow-sm ${
-            isFront ? "border-blue-400" : "border-blue-200"
-          }`}
-          style={{
-            width: size.width,
-            height: size.height,
-          }}
-        >
-          <div className="absolute left-2 top-2 h-5 w-px rotate-45 bg-cyan-200" />
-          <div className="absolute right-3 bottom-3 h-6 w-px rotate-45 bg-cyan-200" />
-          <div className="absolute inset-1 rounded-sm border border-white/80" />
-        </div>
+    <div className="flex h-14 w-20 shrink-0 items-center justify-center">
+      <div
+        className={`relative h-10 w-16 rounded-lg border-2 shadow-sm ${getThumbnailClass(
+          piece.glass_type
+        )} ${isFront ? "ring-2 ring-blue-200" : ""}`}
+      >
+        <div className="absolute left-2 top-2 h-4 w-px rotate-45 bg-cyan-200/80" />
+        <div className="absolute right-3 bottom-2 h-5 w-px rotate-45 bg-cyan-200/80" />
+        <div className="absolute inset-1 rounded-md border border-white/70" />
+
+        {piece.glass_type.toLowerCase().includes("mirror") && (
+          <div className="absolute inset-0 rounded-lg bg-gradient-to-tr from-transparent via-white/80 to-transparent" />
+        )}
+
+        {piece.glass_type.toLowerCase().includes("temper") && (
+          <div className="absolute right-1 top-1 rounded-sm bg-blue-50 px-1 text-[9px] font-bold leading-3 text-blue-700 ring-1 ring-blue-300">
+            T
+          </div>
+        )}
+
+        {piece.glass_type.toLowerCase().includes("laminat") && (
+          <>
+            <div className="absolute bottom-1 left-1 right-1 h-px bg-emerald-300" />
+            <div className="absolute bottom-2 left-1 right-1 h-px bg-emerald-200" />
+          </>
+        )}
       </div>
     </div>
   );
 }
 
 export function RackCard({ rack, pieces, onChange }: Props) {
-  const isLeftovers = rack === "LEFTOVERS";
+  const isLeftovers = normalizeRack(rack) === "LEFTOVERS";
 
   const visiblePieces = useMemo(() => {
     return [...pieces].sort(
@@ -159,8 +160,8 @@ export function RackCard({ rack, pieces, onChange }: Props) {
         </div>
       </div>
 
-      <div className="bg-white p-5">
-        <div className="mb-4 flex items-center gap-4">
+      <div className="bg-white p-4">
+        <div className="mb-3 flex items-center gap-4">
           <div className="h-px flex-1 bg-slate-200" />
           <div className="rounded-full bg-blue-50 px-4 py-1 text-sm font-semibold text-blue-700 ring-1 ring-blue-200">
             Front
@@ -168,7 +169,7 @@ export function RackCard({ rack, pieces, onChange }: Props) {
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
-        <div className="space-y-3">
+        <div className="max-h-[640px] space-y-2 overflow-y-auto pr-1">
           {visiblePieces.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-slate-50 p-8 text-center text-sm text-muted-foreground">
               No pieces in this rack
@@ -187,7 +188,7 @@ export function RackCard({ rack, pieces, onChange }: Props) {
           ))}
         </div>
 
-        <div className="mt-5 flex items-center gap-4">
+        <div className="mt-4 flex items-center gap-4">
           <div className="h-px flex-1 bg-slate-200" />
           <div className="rounded-full bg-slate-50 px-4 py-1 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">
             Back
@@ -247,11 +248,11 @@ function PieceRow({
     onChange();
   };
 
-  const moveRack = async (rack: RackName) => {
+  const moveRack = async (targetRack: RackName) => {
     const { error } = await supabase
       .from("glass_pieces")
       .update({
-        rack,
+        rack: targetRack,
         rack_order: 9999,
       })
       .eq("id", piece.id);
@@ -261,8 +262,8 @@ function PieceRow({
       return;
     }
 
-    await audit("move_rack", { to: rack });
-    toast.success(`Moved to ${rackTitle(rack)}`);
+    await audit("move_rack", { to: targetRack });
+    toast.success(`Moved to ${rackTitle(targetRack)}`);
     onChange();
   };
 
@@ -286,86 +287,58 @@ function PieceRow({
   return (
     <>
       <div
-        className={`rounded-2xl border p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md ${statusRowClass(
+        className={`rounded-2xl border px-4 py-3 shadow-sm transition hover:border-blue-300 hover:shadow-md ${statusRowClass(
           piece.status,
           isFront
         )}`}
       >
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-1 gap-4">
-            <div className="flex w-10 shrink-0 items-center justify-center">
-              <div
-                className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
-                  isFront
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-100 text-blue-700"
-                }`}
-              >
-                {index + 1}
+        <div className="grid grid-cols-[44px_84px_1fr_auto] items-center gap-3">
+          <div
+            className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
+              isFront
+                ? "bg-blue-600 text-white"
+                : "bg-slate-100 text-blue-700"
+            }`}
+          >
+            {index + 1}
+          </div>
+
+          <MiniGlassThumbnail piece={piece} isFront={isFront} />
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-xl font-bold leading-tight text-slate-950">
+                {piece.code}
               </div>
+
+              <StatusBadge status={piece.status} />
+
+              {isFront && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+                  <Star className="h-3 w-3" />
+                  Front sheet
+                </span>
+              )}
+
+              {piece.parent_piece_id && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200">
+                  <Scissors className="h-3 w-3" />
+                  Leftover
+                </span>
+              )}
             </div>
 
-            <MiniGlassThumbnail piece={piece} isFront={isFront} />
+            <div className="mt-1 truncate text-base font-semibold text-slate-800">
+              {piece.width} × {piece.height} mm · {piece.thickness}mm ·{" "}
+              {piece.glass_type}
+            </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-xl font-bold text-slate-950">
-                  {piece.code}
-                </div>
-
-                <StatusBadge status={piece.status} />
-
-                {isFront && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
-                    <Star className="h-3 w-3" />
-                    Front sheet
-                  </span>
-                )}
-
-                {piece.parent_piece_id && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200">
-                    <Scissors className="h-3 w-3" />
-                    Leftover
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-2 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Size
-                  </div>
-                  <div className="font-semibold text-slate-800">
-                    {piece.width} × {piece.height} mm
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Thickness
-                  </div>
-                  <div className="font-semibold text-slate-800">
-                    {piece.thickness} mm
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Type
-                  </div>
-                  <div className="font-semibold text-slate-800">
-                    {piece.glass_type}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-2 text-xs text-slate-400">
-                Position {index + 1} of {total}
-              </div>
+            <div className="mt-0.5 text-sm text-slate-400">
+              Position {index + 1} of {total}
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 self-end xl:self-center">
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
@@ -401,7 +374,9 @@ function PieceRow({
                   Move to rack
                 </DropdownMenuLabel>
 
-                {RACKS.filter((r) => r !== piece.rack).map((r) => (
+                {RACKS.filter(
+                  (r) => normalizeRack(r) !== normalizeRack(piece.rack)
+                ).map((r) => (
                   <DropdownMenuItem key={r} onClick={() => moveRack(r)}>
                     <Move className="mr-2 h-4 w-4" />
                     {rackTitle(r)}
