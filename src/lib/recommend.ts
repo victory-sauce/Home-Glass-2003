@@ -12,45 +12,64 @@ export interface Recommendation {
   piece: GlassPiece;
   waste: number;
   rotated: boolean;
+  priority: number;
+}
+
+function normalizeGlassType(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function getRecommendations(
+  pieces: GlassPiece[],
+  order: OrderSpec
+): Recommendation[] {
+  const orderArea = order.width * order.height;
+  const candidates: Recommendation[] = [];
+
+  for (const piece of pieces) {
+    if (piece.status !== "available") continue;
+    if (Number(piece.thickness) !== Number(order.thickness)) continue;
+
+    if (normalizeGlassType(piece.glass_type) !== normalizeGlassType(order.glass_type)) {
+      continue;
+    }
+
+    const fitsNormal =
+      Number(piece.width) >= Number(order.width) &&
+      Number(piece.height) >= Number(order.height);
+
+    const fitsRotated =
+      order.allow_rotation &&
+      Number(piece.width) >= Number(order.height) &&
+      Number(piece.height) >= Number(order.width);
+
+    if (!fitsNormal && !fitsRotated) continue;
+
+    const waste = Number(piece.width) * Number(piece.height) - orderArea;
+    const priority = piece.rack === "LEFTOVERS" ? 0 : 1;
+
+    candidates.push({
+      piece,
+      waste,
+      rotated: !fitsNormal && fitsRotated,
+      priority,
+    });
+  }
+
+  return candidates.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    if (a.waste !== b.waste) return a.waste - b.waste;
+    return (a.piece.rack_order ?? 0) - (b.piece.rack_order ?? 0);
+  });
 }
 
 /**
- * Recommend the best available glass piece.
- * Priority: thickness == && type == && fits (with optional rotation),
- * LEFTOVERS first, then other racks; rank by least waste area.
+ * Backwards-compatible helper.
+ * Returns only the best available recommendation.
  */
 export function recommendPiece(
   pieces: GlassPiece[],
   order: OrderSpec
 ): Recommendation | null {
-  const orderArea = order.width * order.height;
-  const candidates: Recommendation[] = [];
-
-  for (const p of pieces) {
-    if (p.status !== "available") continue;
-    if (Number(p.thickness) !== Number(order.thickness)) continue;
-    if (p.glass_type !== order.glass_type) continue;
-
-    const fitsNormal = p.width >= order.width && p.height >= order.height;
-    const fitsRotated =
-      order.allow_rotation &&
-      p.width >= order.height &&
-      p.height >= order.width;
-
-    if (!fitsNormal && !fitsRotated) continue;
-
-    const waste = p.width * p.height - orderArea;
-    candidates.push({ piece: p, waste, rotated: !fitsNormal && fitsRotated });
-  }
-
-  if (!candidates.length) return null;
-
-  candidates.sort((a, b) => {
-    const aLeftover = a.piece.rack === "LEFTOVERS" ? 0 : 1;
-    const bLeftover = b.piece.rack === "LEFTOVERS" ? 0 : 1;
-    if (aLeftover !== bLeftover) return aLeftover - bLeftover;
-    return a.waste - b.waste;
-  });
-
-  return candidates[0];
+  return getRecommendations(pieces, order)[0] ?? null;
 }
