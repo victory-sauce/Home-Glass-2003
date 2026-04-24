@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
  * The anon key is safe to ship in the client (RLS protects your data).
  */
 export const SUPABASE_URL = "https://gkuncderdwrrnrfbgwrql.supabase.co";
-export const SUPABASE_ANON_KEY = "sb_publishable_BhR8NGqmQAOzwVngAZI-PQ_MnRhm6SA";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrdW5jZGVyZHdybnJmYmd3cnFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5ODMxMDIsImV4cCI6MjA5MjU1OTEwMn0._0APMM0ZtXo53KSneMzrSdHfzpRrry1PxryMHtaZcbY";
 
 export const isSupabaseConfigured = /^https?:\/\//.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 0;
 
