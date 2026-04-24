@@ -3,12 +3,14 @@ import {
   supabase,
   isSupabaseConfigured,
   type GlassPiece,
+  type Order,
   type RackName,
 } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/KpiCard";
 import { NewOrderPanel } from "@/components/NewOrderPanel";
 import { RackCard } from "@/components/RackCard";
+import { OpenOrdersPanel } from "@/components/OpenOrdersPanel";
 import {
   AlertTriangle,
   ClipboardList,
@@ -22,10 +24,14 @@ const RACKS: RackName[] = ["A", "B", "C", "LEFTOVERS"];
 
 export default function Index() {
   const [pieces, setPieces] = useState<GlassPiece[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [openOrders, setOpenOrders] = useState(0);
   const [loading, setLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<"dashboard" | "openOrders">(
+    "dashboard"
+  );
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured) {
@@ -63,22 +69,31 @@ export default function Index() {
     }
 
     try {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "open");
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) {
         setOrdersError(error.message);
+        setOrders([]);
       } else {
-        setOpenOrders(count ?? 0);
+        const orderRows = (data as Order[]) ?? [];
+        setOrders(orderRows);
+        setOpenOrders(
+          orderRows.filter(
+            (order) =>
+              order.status !== "completed" && order.status !== "cancelled"
+          ).length
+        );
       }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown orders fetch error";
 
       setOrdersError(message);
-      console.error("Orders count exception:", error);
+      setOrders([]);
+      console.error("Orders fetch exception:", error);
     }
 
     setLoading(false);
@@ -148,14 +163,25 @@ export default function Index() {
                   Home Glass 2003
                 </h1>
                 <p className="text-muted-foreground">
-                  Orders & inventory management
+                  Glass order & inventory system
                 </p>
               </div>
             </div>
 
-            <Button variant="outline" onClick={load} disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh inventory"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {activeView === "openOrders" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setActiveView("dashboard")}
+                >
+                  Dashboard
+                </Button>
+              )}
+
+              <Button variant="outline" onClick={load} disabled={loading}>
+                {loading ? "Refreshing..." : "Refresh inventory"}
+              </Button>
+            </div>
           </div>
 
           {!isSupabaseConfigured && (
@@ -185,7 +211,7 @@ export default function Index() {
             <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800">
               <AlertTriangle className="mt-0.5 h-5 w-5" />
               <div>
-                <div className="font-semibold">Orders count error</div>
+                <div className="font-semibold">Orders fetch error</div>
                 <div className="text-sm">{ordersError}</div>
               </div>
             </div>
@@ -194,73 +220,92 @@ export default function Index() {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-        <section className="grid gap-4 md:grid-cols-4">
-          <KpiCard
-            label="Available pieces"
-            value={kpis.available}
-            icon={PackageCheck}
-            tone="success"
+        {activeView === "openOrders" ? (
+          <OpenOrdersPanel
+            orders={orders}
+            pieces={pieces}
+            onBack={() => setActiveView("dashboard")}
+            onChange={load}
           />
-
-          <KpiCard
-            label="Reserved pieces"
-            value={kpis.reserved}
-            icon={ClipboardList}
-            tone="primary"
-          />
-
-          <KpiCard
-            label="Leftovers"
-            value={kpis.leftovers}
-            icon={Scissors}
-            tone="secondary"
-          />
-
-          <KpiCard
-            label="Open orders"
-            value={openOrders}
-            icon={ClipboardList}
-            tone="warning"
-          />
-        </section>
-
-        <section>
-          <NewOrderPanel pieces={pieces} onChange={load} />
-        </section>
-
-        <section className="space-y-4">
-          <div className="flex flex-col justify-between gap-2 md:flex-row md:items-end">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground">
-                Glass inventory
-              </h2>
-              <p className="text-muted-foreground">Visual rack overview</p>
-            </div>
-
-            {loading && (
-              <div className="rounded-full bg-muted px-4 py-2 text-sm text-muted-foreground">
-                Loading…
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            {RACKS.map((rack) => (
-              <RackCard
-                key={rack}
-                rack={rack}
-                pieces={byRack[rack]}
-                onChange={load}
+        ) : (
+          <>
+            <section className="grid gap-4 md:grid-cols-4">
+              <KpiCard
+                label="Available pieces"
+                value={kpis.available}
+                icon={PackageCheck}
+                tone="success"
               />
-            ))}
-          </div>
 
-          {!loading && pieces.length === 0 && !inventoryError && (
-            <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-muted-foreground">
-              No inventory rows were returned from Supabase.
-            </div>
-          )}
-        </section>
+              <KpiCard
+                label="Reserved pieces"
+                value={kpis.reserved}
+                icon={ClipboardList}
+                tone="primary"
+              />
+
+              <KpiCard
+                label="Leftovers"
+                value={kpis.leftovers}
+                icon={Scissors}
+                tone="secondary"
+              />
+
+              <button
+                type="button"
+                onClick={() => setActiveView("openOrders")}
+                className="text-left transition hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                <KpiCard
+                  label="Open orders"
+                  value={openOrders}
+                  icon={ClipboardList}
+                  tone="warning"
+                />
+              </button>
+            </section>
+
+            <section>
+              <NewOrderPanel pieces={pieces} onChange={load} />
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex flex-col justify-between gap-2 md:flex-row md:items-end">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                    Glass inventory
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Visual rack overview
+                  </p>
+                </div>
+
+                {loading && (
+                  <div className="rounded-full bg-muted px-4 py-2 text-sm text-muted-foreground">
+                    Loading…
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                {RACKS.map((rack) => (
+                  <RackCard
+                    key={rack}
+                    rack={rack}
+                    pieces={byRack[rack]}
+                    onChange={load}
+                  />
+                ))}
+              </div>
+
+              {!loading && pieces.length === 0 && !inventoryError && (
+                <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-muted-foreground">
+                  No inventory rows were returned from Supabase.
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </main>
     </div>
   );
