@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Trash2,
   Move,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,7 +41,7 @@ interface Props {
   onChange: () => void;
 }
 
-function rackTitle(rack: RackName) {
+function rackTitle(rack: RackName | string) {
   return rack === "LEFTOVERS" ? "Leftovers" : `Rack ${rack}`;
 }
 
@@ -48,29 +49,81 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function getVisualSize(piece: GlassPiece) {
+function getThumbnailSize(piece: GlassPiece) {
   const width = Number(piece.width || 0);
   const height = Number(piece.height || 0);
 
+  const maxW = 98;
+  const maxH = 64;
+
+  if (!width || !height) {
+    return {
+      width: 72,
+      height: 48,
+    };
+  }
+
+  const ratio = width / height;
+
+  let thumbWidth = maxW;
+  let thumbHeight = maxW / ratio;
+
+  if (thumbHeight > maxH) {
+    thumbHeight = maxH;
+    thumbWidth = maxH * ratio;
+  }
+
   return {
-    width: clamp(width / 18, 72, 210),
-    height: clamp(height / 18, 44, 130),
+    width: clamp(thumbWidth, 44, maxW),
+    height: clamp(thumbHeight, 30, maxH),
   };
 }
 
-function statusBorderClass(status: string) {
-  switch (status) {
-    case "available":
-      return "border-emerald-300";
-    case "reserved":
-      return "border-amber-300";
-    case "used":
-      return "border-slate-300 opacity-50";
-    case "broken":
-      return "border-rose-300 border-dashed opacity-50";
-    default:
-      return "border-blue-200";
+function statusRowClass(status: string, isFront: boolean) {
+  if (isFront) {
+    return "border-blue-400 bg-blue-50/60 ring-2 ring-blue-100";
   }
+
+  switch (status) {
+    case "reserved":
+      return "border-amber-200 bg-amber-50/40";
+    case "broken":
+      return "border-rose-200 bg-rose-50/40 opacity-70";
+    case "used":
+      return "border-slate-200 bg-slate-100/70 opacity-70";
+    default:
+      return "border-slate-200 bg-white";
+  }
+}
+
+function MiniGlassThumbnail({
+  piece,
+  isFront,
+}: {
+  piece: GlassPiece;
+  isFront: boolean;
+}) {
+  const size = getThumbnailSize(piece);
+
+  return (
+    <div className="flex w-[132px] shrink-0 items-center gap-2">
+      <div className="flex h-[86px] w-[116px] items-center justify-center">
+        <div
+          className={`relative rounded-md border-2 bg-gradient-to-br from-sky-50 via-white to-cyan-50 shadow-sm ${
+            isFront ? "border-blue-400" : "border-blue-200"
+          }`}
+          style={{
+            width: size.width,
+            height: size.height,
+          }}
+        >
+          <div className="absolute left-2 top-2 h-5 w-px rotate-45 bg-cyan-200" />
+          <div className="absolute right-3 bottom-3 h-6 w-px rotate-45 bg-cyan-200" />
+          <div className="absolute inset-1 rounded-sm border border-white/80" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function RackCard({ rack, pieces, onChange }: Props) {
@@ -106,82 +159,41 @@ export function RackCard({ rack, pieces, onChange }: Props) {
         </div>
       </div>
 
-      <div className="border-b bg-gradient-to-br from-slate-50 to-blue-50 p-5">
-        <div className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
-          <span>Front</span>
-          <span>Back</span>
+      <div className="bg-white p-5">
+        <div className="mb-4 flex items-center gap-4">
+          <div className="h-px flex-1 bg-slate-200" />
+          <div className="rounded-full bg-blue-50 px-4 py-1 text-sm font-semibold text-blue-700 ring-1 ring-blue-200">
+            Front
+          </div>
+          <div className="h-px flex-1 bg-slate-200" />
         </div>
 
-        <div className="relative h-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner">
-          {visiblePieces.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        <div className="space-y-3">
+          {visiblePieces.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-border bg-slate-50 p-8 text-center text-sm text-muted-foreground">
               No pieces in this rack
             </div>
-          ) : (
-            visiblePieces.slice(0, 9).map((piece, index) => {
-              const size = getVisualSize(piece);
-
-              return (
-                <button
-                  key={piece.id}
-                  type="button"
-                  className={`absolute rounded-xl border-2 bg-white/95 p-3 text-left shadow-lg transition hover:-translate-y-1 hover:shadow-xl ${statusBorderClass(
-                    piece.status
-                  )}`}
-                  style={{
-                    width: size.width,
-                    height: size.height,
-                    left: 24 + index * 22,
-                    top: 26 + index * 18,
-                    zIndex: 100 - index,
-                  }}
-                  title={`${piece.code} · ${piece.width}×${piece.height}×${piece.thickness} · ${piece.glass_type}`}
-                >
-                  <div className="truncate text-sm font-bold text-slate-950">
-                    {piece.code}
-                  </div>
-
-                  <div className="mt-1 truncate text-xs font-medium text-slate-500">
-                    {piece.width}×{piece.height}
-                  </div>
-
-                  <div className="truncate text-xs text-slate-400">
-                    {piece.thickness}mm · {piece.glass_type}
-                  </div>
-                </button>
-              );
-            })
           )}
 
-          {visiblePieces.length > 9 && (
-            <div className="absolute bottom-3 right-3 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white shadow-lg">
-              +{visiblePieces.length - 9} more
-            </div>
-          )}
+          {visiblePieces.map((piece, index) => (
+            <PieceRow
+              key={piece.id}
+              piece={piece}
+              index={index}
+              total={visiblePieces.length}
+              isFront={index === 0}
+              onChange={onChange}
+            />
+          ))}
         </div>
 
-        <div className="mt-3 text-xs text-muted-foreground">
-          Sheets are shown front-to-back. Size is approximate and scaled for
-          display.
-        </div>
-      </div>
-
-      <div className="max-h-[460px] space-y-3 overflow-y-auto bg-slate-50 p-5">
-        {visiblePieces.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border bg-white p-6 text-center text-sm text-muted-foreground">
-            No pieces in this rack
+        <div className="mt-5 flex items-center gap-4">
+          <div className="h-px flex-1 bg-slate-200" />
+          <div className="rounded-full bg-slate-50 px-4 py-1 text-sm font-semibold text-slate-500 ring-1 ring-slate-200">
+            Back
           </div>
-        )}
-
-        {visiblePieces.map((piece, index) => (
-          <PieceRow
-            key={piece.id}
-            piece={piece}
-            index={index}
-            total={visiblePieces.length}
-            onChange={onChange}
-          />
-        ))}
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
       </div>
 
       {isLeftovers && (
@@ -197,11 +209,13 @@ function PieceRow({
   piece,
   index,
   total,
+  isFront,
   onChange,
 }: {
   piece: GlassPiece;
   index: number;
   total: number;
+  isFront: boolean;
   onChange: () => void;
 }) {
   const [leftoverOpen, setLeftoverOpen] = useState(false);
@@ -271,34 +285,87 @@ function PieceRow({
 
   return (
     <>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="text-xl font-bold text-slate-950">
-                {piece.code}
+      <div
+        className={`rounded-2xl border p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md ${statusRowClass(
+          piece.status,
+          isFront
+        )}`}
+      >
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-1 gap-4">
+            <div className="flex w-10 shrink-0 items-center justify-center">
+              <div
+                className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
+                  isFront
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-blue-700"
+                }`}
+              >
+                {index + 1}
+              </div>
+            </div>
+
+            <MiniGlassThumbnail piece={piece} isFront={isFront} />
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-xl font-bold text-slate-950">
+                  {piece.code}
+                </div>
+
+                <StatusBadge status={piece.status} />
+
+                {isFront && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+                    <Star className="h-3 w-3" />
+                    Front sheet
+                  </span>
+                )}
+
+                {piece.parent_piece_id && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200">
+                    <Scissors className="h-3 w-3" />
+                    Leftover
+                  </span>
+                )}
               </div>
 
-              <StatusBadge status={piece.status} />
+              <div className="mt-2 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Size
+                  </div>
+                  <div className="font-semibold text-slate-800">
+                    {piece.width} × {piece.height} mm
+                  </div>
+                </div>
 
-              {piece.parent_piece_id && (
-                <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200">
-                  leftover
-                </span>
-              )}
-            </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Thickness
+                  </div>
+                  <div className="font-semibold text-slate-800">
+                    {piece.thickness} mm
+                  </div>
+                </div>
 
-            <div className="mt-2 text-sm text-slate-500">
-              {piece.width}×{piece.height}mm · {piece.thickness}mm ·{" "}
-              {piece.glass_type}
-            </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Type
+                  </div>
+                  <div className="font-semibold text-slate-800">
+                    {piece.glass_type}
+                  </div>
+                </div>
+              </div>
 
-            <div className="mt-1 text-xs text-slate-400">
-              Position {index + 1} of {total}
+              <div className="mt-2 text-xs text-slate-400">
+                Position {index + 1} of {total}
+              </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1 self-end xl:self-center">
             <Button
               variant="ghost"
               size="icon"
