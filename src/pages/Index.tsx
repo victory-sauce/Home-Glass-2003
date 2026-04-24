@@ -145,7 +145,7 @@ export default function Index() {
 
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                  Glass Shop Dashboard
+                  Home Glass 2003
                 </h1>
                 <p className="text-muted-foreground">
                   Orders & inventory management
