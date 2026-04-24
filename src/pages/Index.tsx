@@ -25,6 +25,8 @@ export default function Index() {
   const [pieces, setPieces] = useState<GlassPiece[]>([]);
   const [openOrders, setOpenOrders] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured) {
