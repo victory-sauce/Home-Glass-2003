@@ -1,9 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  supabase,
-  type GlassPiece,
-  type Order,
-} from "@/lib/supabase";
+import { supabase, type GlassPiece, type Order } from "@/lib/supabase";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +15,7 @@ import {
   MapPin,
   PackageCheck,
   Printer,
+  ReceiptText,
   Scissors,
   Search,
   Sparkles,
@@ -76,6 +73,18 @@ function formatDate(value?: string) {
   } catch {
     return value;
   }
+}
+
+function receiptLabel(value?: string | null) {
+  return value === "vat" ? "VAT receipt" : "Non-VAT receipt";
+}
+
+function receiptClass(value?: string | null) {
+  if (value === "vat") {
+    return "bg-blue-50 text-blue-700 ring-1 ring-blue-200";
+  }
+
+  return "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
 }
 
 function getRecommendations(
@@ -220,7 +229,8 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
         order.id.toLowerCase().includes(q) ||
         normalize(order.customer_name_snapshot).includes(q) ||
         normalize(order.customer_phone_snapshot).includes(q) ||
-        normalize(order.glass_type).includes(q);
+        normalize(order.glass_type).includes(q) ||
+        normalize(order.receipt_type).includes(q);
 
       const matchesStatus =
         statusFilter === "all" || order.status === statusFilter;
@@ -302,6 +312,7 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
           rack: bestRecommendation.piece.rack,
           waste: bestRecommendation.waste,
           rotated: bestRecommendation.rotated,
+          receipt_type: selectedOrder.receipt_type ?? "non_vat",
         },
       });
 
@@ -336,6 +347,7 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
         details: {
           order_id: selectedOrder.id,
           status,
+          receipt_type: selectedOrder.receipt_type ?? "non_vat",
         },
       });
 
@@ -382,7 +394,7 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
           </p>
         </div>
 
-        <Button>
+        <Button onClick={onBack}>
           <ClipboardList className="mr-2 h-4 w-4" />
           New Order
         </Button>
@@ -478,13 +490,14 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
           <div className="border-b bg-slate-50 px-4 py-3">
-            <div className="grid grid-cols-[120px_1fr_120px_140px_70px_100px_120px_100px] gap-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            <div className="grid grid-cols-[120px_1fr_120px_140px_70px_100px_100px_120px_100px] gap-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
               <div>Order ID</div>
               <div>Customer</div>
               <div>Phone</div>
               <div>Requested size</div>
               <div>THK</div>
               <div>Glass</div>
+              <div>Receipt</div>
               <div>Source</div>
               <div>Status</div>
             </div>
@@ -504,7 +517,7 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
                   <button
                     key={order.id}
                     onClick={() => setSelectedOrderId(order.id)}
-                    className={`grid w-full grid-cols-[120px_1fr_120px_140px_70px_100px_120px_100px] gap-3 px-4 py-4 text-left text-sm transition hover:bg-blue-50/60 ${
+                    className={`grid w-full grid-cols-[120px_1fr_120px_140px_70px_100px_100px_120px_100px] gap-3 px-4 py-4 text-left text-sm transition hover:bg-blue-50/60 ${
                       selected
                         ? "bg-blue-50 ring-1 ring-inset ring-blue-200"
                         : "bg-white"
@@ -529,6 +542,16 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
                     <div>{order.thickness}</div>
 
                     <div>{order.glass_type}</div>
+
+                    <div>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${receiptClass(
+                          order.receipt_type
+                        )}`}
+                      >
+                        {order.receipt_type === "vat" ? "VAT" : "Non-VAT"}
+                      </span>
+                    </div>
 
                     <div className="text-muted-foreground">
                       {recommendation
@@ -583,6 +606,13 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
                     >
                       {selectedOrder.status}
                     </span>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${receiptClass(
+                        selectedOrder.receipt_type
+                      )}`}
+                    >
+                      {receiptLabel(selectedOrder.receipt_type)}
+                    </span>
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                     <CalendarDays className="h-3.5 w-3.5" />
@@ -619,15 +649,23 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
                     <dd className="font-medium">
                       {selectedOrder.width} × {selectedOrder.height}
                     </dd>
+
                     <dt className="text-muted-foreground">Thickness</dt>
                     <dd className="font-medium">
                       {selectedOrder.thickness} mm
                     </dd>
+
                     <dt className="text-muted-foreground">Glass type</dt>
                     <dd className="font-medium">{selectedOrder.glass_type}</dd>
+
                     <dt className="text-muted-foreground">Rotation</dt>
                     <dd className="font-medium">
                       {selectedOrder.allow_rotation ? "Yes" : "No"}
+                    </dd>
+
+                    <dt className="text-muted-foreground">Receipt</dt>
+                    <dd className="font-medium">
+                      {receiptLabel(selectedOrder.receipt_type)}
                     </dd>
                   </dl>
                 </div>
@@ -638,6 +676,18 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
                     Timeline
                   </div>
                   <OrderTimeline status={selectedOrder.status} />
+                </div>
+              </div>
+
+              <div className="px-5 pb-5">
+                <div className="rounded-xl border bg-slate-50 p-3 text-sm text-slate-600">
+                  <div className="mb-1 flex items-center gap-2 font-semibold text-slate-900">
+                    <ReceiptText className="h-4 w-4 text-blue-600" />
+                    Flow Account trigger
+                  </div>
+                  {selectedOrder.receipt_type === "vat"
+                    ? "Later this order should trigger the VAT receipt / tax invoice workflow in Flow Account."
+                    : "Later this order should trigger the normal non-VAT receipt workflow in Flow Account."}
                 </div>
               </div>
 
@@ -740,7 +790,8 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
                             )
                           }
                         >
-                          See Other Matches ({Math.max(0, recommendations.length - 1)})
+                          See Other Matches (
+                          {Math.max(0, recommendations.length - 1)})
                         </Button>
                       </div>
                     </div>
@@ -817,7 +868,7 @@ export function OpenOrdersPanel({ orders, pieces, onBack, onChange }: Props) {
                         </div>
                         <div className="text-muted-foreground">
                           {order.width} × {order.height} × {order.thickness} mm ·{" "}
-                          {order.glass_type}
+                          {order.glass_type} · {receiptLabel(order.receipt_type)}
                         </div>
                         <div>
                           <span
