@@ -74,6 +74,7 @@ export interface Order {
   thickness: number;
   notes: string | null;
   allow_rotation: boolean;
+  receipt_type: "vat" | "non_vat" | string;
   status: "open" | "reserved" | "completed" | "cancelled" | string;
   selected_piece_id: string | null;
   created_at?: string;
