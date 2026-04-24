@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  supabase,
-  type GlassPiece,
-  type Order,
-} from "@/lib/supabase";
-import {
-  getRecommendations,
-  type Recommendation,
-} from "@/lib/recommend";
+import type { ReactNode } from "react";
+import { supabase, type GlassPiece, type Order } from "@/lib/supabase";
+import { getRecommendations, type Recommendation } from "@/lib/recommend";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,13 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
   PackagePlus,
-  Sparkles,
   Lock,
   RotateCw,
   Search,
   Scissors,
   Layers,
   CheckCircle2,
+  ReceiptText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,6 +35,7 @@ const initial = {
   thickness: "6",
   notes: "",
   allow_rotation: true,
+  receipt_type: "non_vat" as "vat" | "non_vat",
 };
 
 function rackLabel(rack: string) {
@@ -55,6 +50,10 @@ function matchQualityLabel(index: number) {
   if (index === 0) return "Best match";
   if (index <= 2) return "Good option";
   return "Alternative";
+}
+
+function receiptLabel(value: "vat" | "non_vat") {
+  return value === "vat" ? "VAT receipt" : "Non-VAT receipt";
 }
 
 export function NewOrderPanel({ pieces, onChange }: Props) {
@@ -167,6 +166,7 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           thickness: spec.thickness,
           notes: form.notes || null,
           allow_rotation: spec.allow_rotation,
+          receipt_type: form.receipt_type,
           status: "open",
           selected_piece_id: selectedRecommendation?.piece.id ?? null,
         })
@@ -188,11 +188,13 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           width: spec.width,
           height: spec.height,
           thickness: spec.thickness,
+          receipt_type: form.receipt_type,
+          receipt_label: receiptLabel(form.receipt_type),
           recommended_piece: selectedRecommendation?.piece.code ?? null,
         },
       });
 
-      toast.success("Order created");
+      toast.success(`Order created · ${receiptLabel(form.receipt_type)}`);
       onChange();
     } catch (error) {
       const message =
@@ -249,6 +251,7 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           piece_code: target.piece.code,
           rotated: target.rotated,
           waste: target.waste,
+          receipt_type: order.receipt_type,
         },
       });
 
@@ -278,7 +281,8 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
               New customer order
             </h2>
             <p className="text-muted-foreground">
-              Capture order, search inventory, and reserve the best matching piece
+              Capture order, search inventory, and reserve the best matching
+              piece
             </p>
           </div>
 
@@ -354,6 +358,39 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
                 <option value="12">12mm</option>
               </select>
             </Field>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-slate-50 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <ReceiptText className="h-5 w-5 text-blue-600" />
+              <div>
+                <div className="font-semibold text-foreground">
+                  Receipt type
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  This will be used later to trigger the correct Flow Account
+                  process.
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <ReceiptOption
+                value="non_vat"
+                selected={form.receipt_type === "non_vat"}
+                title="Non-VAT receipt"
+                description="For normal receipt without VAT tax invoice."
+                onSelect={() => set("receipt_type", "non_vat")}
+              />
+
+              <ReceiptOption
+                value="vat"
+                selected={form.receipt_type === "vat"}
+                title="VAT receipt"
+                description="For VAT receipt / tax invoice workflow."
+                onSelect={() => set("receipt_type", "vat")}
+              />
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-[1fr_320px]">
@@ -529,7 +566,7 @@ function Field({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
@@ -538,5 +575,43 @@ function Field({
       </Label>
       {children}
     </div>
+  );
+}
+
+function ReceiptOption({
+  value,
+  selected,
+  title,
+  description,
+  onSelect,
+}: {
+  value: "vat" | "non_vat";
+  selected: boolean;
+  title: string;
+  description: string;
+  onSelect: () => void;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+        selected
+          ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100"
+          : "border-slate-200 bg-white hover:border-blue-200"
+      }`}
+    >
+      <input
+        type="radio"
+        name="receipt_type"
+        value={value}
+        checked={selected}
+        onChange={onSelect}
+        className="mt-1 h-4 w-4 accent-blue-600"
+      />
+
+      <div>
+        <div className="font-semibold text-slate-950">{title}</div>
+        <div className="mt-1 text-sm text-muted-foreground">{description}</div>
+      </div>
+    </label>
   );
 }
