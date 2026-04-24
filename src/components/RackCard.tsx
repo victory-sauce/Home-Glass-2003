@@ -82,7 +82,9 @@ export function RackCard({ rack, pieces, onChange }: Props) {
     );
   }, [pieces]);
 
-  const frontPiece = visiblePieces.find((piece) => piece.status === "available");
+  const frontPiece = visiblePieces.find(
+    (piece) => piece.status === "available"
+  );
 
   return (
     <Card className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
@@ -138,9 +140,11 @@ export function RackCard({ rack, pieces, onChange }: Props) {
                   <div className="truncate text-sm font-bold text-slate-950">
                     {piece.code}
                   </div>
+
                   <div className="mt-1 truncate text-xs font-medium text-slate-500">
                     {piece.width}×{piece.height}
                   </div>
+
                   <div className="truncate text-xs text-slate-400">
                     {piece.thickness}mm · {piece.glass_type}
                   </div>
@@ -157,7 +161,8 @@ export function RackCard({ rack, pieces, onChange }: Props) {
         </div>
 
         <div className="mt-3 text-xs text-muted-foreground">
-          Sheets are shown front-to-back. Size is approximate and scaled for display.
+          Sheets are shown front-to-back. Size is approximate and scaled for
+          display.
         </div>
       </div>
 
@@ -273,7 +278,9 @@ function PieceRow({
               <div className="text-xl font-bold text-slate-950">
                 {piece.code}
               </div>
+
               <StatusBadge status={piece.status} />
+
               {piece.parent_piece_id && (
                 <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200">
                   leftover
@@ -446,6 +453,7 @@ function CreateLeftoverDialog({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to create leftover";
+
       toast.error(message);
     } finally {
       setBusy(false);
