@@ -14,8 +14,9 @@ function serializeError(value: unknown) {
   if (!value) return "null";
 
   if (value instanceof Error) {
+    const errorRecord = value as unknown as Record<string, unknown>;
     const details = Object.fromEntries(
-      Object.getOwnPropertyNames(value).map((key) => [key, (value as Record<string, unknown>)[key]]),
+      Object.getOwnPropertyNames(value).map((key) => [key, errorRecord[key]]),
     );
     return JSON.stringify(details, null, 2);
   }
