@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase, type GlassPiece, type RackName } from "@/lib/supabase";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,6 @@ import {
   Layers,
   MoreVertical,
   Scissors,
-  Wrench,
   RotateCcw,
   Trash2,
   Move,
@@ -41,36 +40,150 @@ interface Props {
   onChange: () => void;
 }
 
+function rackTitle(rack: RackName) {
+  return rack === "LEFTOVERS" ? "Leftovers" : `Rack ${rack}`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getVisualSize(piece: GlassPiece) {
+  const width = Number(piece.width || 0);
+  const height = Number(piece.height || 0);
+
+  return {
+    width: clamp(width / 18, 72, 210),
+    height: clamp(height / 18, 44, 130),
+  };
+}
+
+function statusBorderClass(status: string) {
+  switch (status) {
+    case "available":
+      return "border-emerald-300";
+    case "reserved":
+      return "border-amber-300";
+    case "used":
+      return "border-slate-300 opacity-50";
+    case "broken":
+      return "border-rose-300 border-dashed opacity-50";
+    default:
+      return "border-blue-200";
+  }
+}
+
 export function RackCard({ rack, pieces, onChange }: Props) {
   const isLeftovers = rack === "LEFTOVERS";
 
+  const visiblePieces = useMemo(() => {
+    return [...pieces].sort(
+      (a, b) => (a.rack_order ?? 0) - (b.rack_order ?? 0)
+    );
+  }, [pieces]);
+
+  const frontPiece = visiblePieces.find((piece) => piece.status === "available");
+
   return (
-    <Card className="shadow-card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 bg-header text-header-foreground">
-        <div className="flex items-center gap-3">
-          <div className="size-9 rounded-lg bg-primary/20 flex items-center justify-center">
-            {isLeftovers ? <Scissors className="size-4" /> : <Layers className="size-4" />}
+    <Card className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
+      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-white">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/20">
+            <Layers className="h-7 w-7" />
           </div>
-          <div>
-            <h3 className="font-bold tracking-wide">Rack {rack}</h3>
-            <p className="text-xs text-header-foreground/60">{pieces.length} pieces</p>
+
+          <div className="min-w-0">
+            <h3 className="text-2xl font-bold tracking-tight">
+              {rackTitle(rack)}
+            </h3>
+            <p className="text-sm text-slate-300">
+              {visiblePieces.length} pieces
+              {frontPiece ? ` · Front: ${frontPiece.code}` : ""}
+            </p>
           </div>
         </div>
       </div>
-      <div className="p-3 space-y-2 max-h-[420px] overflow-auto bg-muted/30">
-        {pieces.length === 0 && (
-          <div className="text-center text-sm text-muted-foreground py-8">No pieces in this rack</div>
+
+      <div className="border-b bg-gradient-to-br from-slate-50 to-blue-50 p-5">
+        <div className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <span>Front</span>
+          <span>Back</span>
+        </div>
+
+        <div className="relative h-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner">
+          {visiblePieces.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              No pieces in this rack
+            </div>
+          ) : (
+            visiblePieces.slice(0, 9).map((piece, index) => {
+              const size = getVisualSize(piece);
+
+              return (
+                <button
+                  key={piece.id}
+                  type="button"
+                  className={`absolute rounded-xl border-2 bg-white/95 p-3 text-left shadow-lg transition hover:-translate-y-1 hover:shadow-xl ${statusBorderClass(
+                    piece.status
+                  )}`}
+                  style={{
+                    width: size.width,
+                    height: size.height,
+                    left: 24 + index * 22,
+                    top: 26 + index * 18,
+                    zIndex: 100 - index,
+                  }}
+                  title={`${piece.code} · ${piece.width}×${piece.height}×${piece.thickness} · ${piece.glass_type}`}
+                >
+                  <div className="truncate text-sm font-bold text-slate-950">
+                    {piece.code}
+                  </div>
+                  <div className="mt-1 truncate text-xs font-medium text-slate-500">
+                    {piece.width}×{piece.height}
+                  </div>
+                  <div className="truncate text-xs text-slate-400">
+                    {piece.thickness}mm · {piece.glass_type}
+                  </div>
+                </button>
+              );
+            })
+          )}
+
+          {visiblePieces.length > 9 && (
+            <div className="absolute bottom-3 right-3 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white shadow-lg">
+              +{visiblePieces.length - 9} more
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 text-xs text-muted-foreground">
+          Sheets are shown front-to-back. Size is approximate and scaled for display.
+        </div>
+      </div>
+
+      <div className="max-h-[460px] space-y-3 overflow-y-auto bg-slate-50 p-5">
+        {visiblePieces.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-border bg-white p-6 text-center text-sm text-muted-foreground">
+            No pieces in this rack
+          </div>
         )}
-        {pieces.map((p, i) => (
+
+        {visiblePieces.map((piece, index) => (
           <PieceRow
-            key={p.id}
-            piece={p}
-            index={i}
-            total={pieces.length}
+            key={piece.id}
+            piece={piece}
+            index={index}
+            total={visiblePieces.length}
             onChange={onChange}
           />
         ))}
       </div>
+
+      {isLeftovers && (
+        <div className="border-t bg-cyan-50 px-5 py-3 text-xs text-cyan-800">
+          Leftovers are prioritized first when recommending glass for new orders.
+        </div>
+      )}
     </Card>
   );
 }
@@ -93,12 +206,23 @@ function PieceRow({
       action,
       entity_type: "glass_piece",
       entity_id: piece.id,
-      details: { piece_code: piece.code, ...details },
+      details: {
+        piece_code: piece.code,
+        ...details,
+      },
     });
 
   const updateStatus = async (status: string) => {
-    const { error } = await supabase.from("glass_pieces").update({ status }).eq("id", piece.id);
-    if (error) return toast.error(error.message);
+    const { error } = await supabase
+      .from("glass_pieces")
+      .update({ status })
+      .eq("id", piece.id);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
     await audit(`mark_${status}`);
     toast.success(`Marked ${status}`);
     onChange();
@@ -107,87 +231,133 @@ function PieceRow({
   const moveRack = async (rack: RackName) => {
     const { error } = await supabase
       .from("glass_pieces")
-      .update({ rack, rack_order: 9999 })
+      .update({
+        rack,
+        rack_order: 9999,
+      })
       .eq("id", piece.id);
-    if (error) return toast.error(error.message);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
     await audit("move_rack", { to: rack });
-    toast.success(`Moved to ${rack}`);
+    toast.success(`Moved to ${rackTitle(rack)}`);
     onChange();
   };
 
   const swapOrder = async (delta: -1 | 1) => {
-    const newOrder = (piece.rack_order ?? index) + delta;
+    const newOrder = Math.max(1, (piece.rack_order ?? index + 1) + delta);
+
     const { error } = await supabase
       .from("glass_pieces")
       .update({ rack_order: newOrder })
       .eq("id", piece.id);
-    if (error) return toast.error(error.message);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
     await audit("reorder", { rack_order: newOrder });
     onChange();
   };
 
   return (
-    <div className="rounded-lg bg-card border border-border p-3 shadow-sm hover:shadow-card transition-shadow">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-foreground">{piece.code}</span>
-            <StatusBadge status={piece.status} />
+    <>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-xl font-bold text-slate-950">
+                {piece.code}
+              </div>
+              <StatusBadge status={piece.status} />
+              {piece.parent_piece_id && (
+                <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200">
+                  leftover
+                </span>
+              )}
+            </div>
+
+            <div className="mt-2 text-sm text-slate-500">
+              {piece.width}×{piece.height}mm · {piece.thickness}mm ·{" "}
+              {piece.glass_type}
+            </div>
+
+            <div className="mt-1 text-xs text-slate-400">
+              Position {index + 1} of {total}
+            </div>
           </div>
-          <div className="text-sm text-muted-foreground mt-1">
-            {piece.width}×{piece.height}mm · {piece.thickness}mm · {piece.glass_type}
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8"
-            disabled={index === 0}
-            onClick={() => swapOrder(-1)}
-          >
-            <ArrowUp className="size-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8"
-            disabled={index === total - 1}
-            onClick={() => swapOrder(1)}
-          >
-            <ArrowDown className="size-4" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" className="size-8">
-                <MoreVertical className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 bg-popover">
-              <DropdownMenuLabel>
-                <Move className="size-3 inline mr-1" /> Move to rack
-              </DropdownMenuLabel>
-              {RACKS.filter((r) => r !== piece.rack).map((r) => (
-                <DropdownMenuItem key={r} onClick={() => moveRack(r)}>
-                  Rack {r}
+
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={index === 0}
+              onClick={() => swapOrder(-1)}
+              title="Move toward front"
+            >
+              <ArrowUp className="h-5 w-5" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={index === total - 1}
+              onClick={() => swapOrder(1)}
+              title="Move toward back"
+            >
+              <ArrowDown className="h-5 w-5" />
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>{piece.code}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Move to rack
+                </DropdownMenuLabel>
+
+                {RACKS.filter((r) => r !== piece.rack).map((r) => (
+                  <DropdownMenuItem key={r} onClick={() => moveRack(r)}>
+                    <Move className="mr-2 h-4 w-4" />
+                    {rackTitle(r)}
+                  </DropdownMenuItem>
+                ))}
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onClick={() => setLeftoverOpen(true)}>
+                  <Scissors className="mr-2 h-4 w-4" />
+                  Create leftover
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setLeftoverOpen(true)}>
-                <Scissors className="size-4 mr-2" /> Create leftover
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => updateStatus("used")}>
-                <Wrench className="size-4 mr-2" /> Mark used
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => updateStatus("broken")}>
-                <Trash2 className="size-4 mr-2" /> Mark broken
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => updateStatus("available")}>
-                <RotateCcw className="size-4 mr-2" /> Restore
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+
+                <DropdownMenuItem onClick={() => updateStatus("used")}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Mark used
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => updateStatus("broken")}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Mark broken
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => updateStatus("available")}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Restore
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
@@ -197,7 +367,7 @@ function PieceRow({
         source={piece}
         onCreated={onChange}
       />
-    </div>
+    </>
   );
 }
 
@@ -208,7 +378,7 @@ function CreateLeftoverDialog({
   onCreated,
 }: {
   open: boolean;
-  onOpenChange: (v: boolean) => void;
+  onOpenChange: (value: boolean) => void;
   source: GlassPiece;
   onCreated: () => void;
 }) {
@@ -218,18 +388,26 @@ function CreateLeftoverDialog({
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    const w = parseFloat(width);
-    const h = parseFloat(height);
-    if (!code || !w || !h) {
+    const w = Number.parseFloat(width);
+    const h = Number.parseFloat(height);
+
+    if (!code.trim() || !w || !h) {
       toast.error("Code, width and height are required");
       return;
     }
+
+    if (w <= 0 || h <= 0) {
+      toast.error("Width and height must be greater than zero");
+      return;
+    }
+
     setBusy(true);
+
     try {
       const { data, error } = await supabase
         .from("glass_pieces")
         .insert({
-          code,
+          code: code.trim(),
           width: w,
           height: h,
           thickness: source.thickness,
@@ -241,13 +419,22 @@ function CreateLeftoverDialog({
         })
         .select("id")
         .single();
-      if (error) throw error;
+
+      if (error) {
+        throw error;
+      }
 
       await supabase.from("audit_logs").insert({
         action: "create_leftover",
         entity_type: "glass_piece",
         entity_id: data.id,
-        details: { source_piece_id: source.id, source_code: source.code, code, width: w, height: h },
+        details: {
+          source_piece_id: source.id,
+          source_code: source.code,
+          code: code.trim(),
+          width: w,
+          height: h,
+        },
       });
 
       toast.success("Leftover created");
@@ -256,9 +443,10 @@ function CreateLeftoverDialog({
       setWidth("");
       setHeight("");
       onCreated();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed";
-      toast.error(msg);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to create leftover";
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -266,32 +454,61 @@ function CreateLeftoverDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Create leftover from {source.code}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="text-sm text-muted-foreground">
+
+        <div className="space-y-4">
+          <div className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">
             Inherits {source.thickness}mm · {source.glass_type}
           </div>
+
           <div className="space-y-2">
             <Label>Code</Label>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} className="h-11" />
+            <Input
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="Example: L015"
+              className="h-11"
+            />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Width (mm)</Label>
-              <Input type="number" value={width} onChange={(e) => setWidth(e.target.value)} className="h-11" />
+              <Input
+                type="number"
+                value={width}
+                onChange={(event) => setWidth(event.target.value)}
+                className="h-11"
+              />
             </div>
+
             <div className="space-y-2">
               <Label>Height (mm)</Label>
-              <Input type="number" value={height} onChange={(e) => setHeight(e.target.value)} className="h-11" />
+              <Input
+                type="number"
+                value={height}
+                onChange={(event) => setHeight(event.target.value)}
+                className="h-11"
+              />
             </div>
           </div>
         </div>
+
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={busy}>Create leftover</Button>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+
+          <Button onClick={submit} disabled={busy}>
+            {busy ? "Creating..." : "Create leftover"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
