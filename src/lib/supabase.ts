@@ -10,7 +10,7 @@ import { createClient } from "@supabase/supabase-js";
  * Never put the service_role key in frontend code.
  */
 
-export const SUPABASE_URL = "https://gkuncderdwrrnrfbgwrql.supabase.co";
+export const SUPABASE_URL = "https://gkuncderdwrnrfbgwrql.supabase.co";
 
 export const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrdW5jZGVyZHdybnJmYmd3cnFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5ODMxMDIsImV4cCI6MjA5MjU1OTEwMn0._0APMM0ZtXo53KSneMzrSdHfzpRrry1PxryMHtaZcbY";
