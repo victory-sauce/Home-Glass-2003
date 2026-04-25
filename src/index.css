@@ -116,3 +116,94 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+.print-only {
+  display: none;
+}
+
+.quotation-print-document {
+  max-width: 210mm;
+  margin: 0 auto;
+  color: #0f172a;
+}
+
+.quotation-print-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #94a3b8;
+  padding-bottom: 8px;
+}
+
+.quotation-print-meta {
+  margin-top: 8px;
+  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.quote-print-item {
+  margin-top: 10px;
+  border: 1px solid #94a3b8;
+  padding: 10px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.print-drawing {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.quote-print-spec-table th,
+.quote-print-spec-table td {
+  font-size: 12px;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 11mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .screen-only {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .quotation-print-document {
+    max-width: 100%;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  .quote-print-item {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .print-hide,
+  .lovable-badge,
+  [data-lovable-badge],
+  iframe#lovable-badge {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}

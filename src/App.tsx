@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index.tsx";
+import Quotations from "./pages/Quotations.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -17,7 +18,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <div className="w-full bg-amber-500 text-amber-950 text-center text-sm font-medium py-2 px-4">
+          <div className="screen-only w-full bg-amber-500 text-amber-950 text-center text-sm font-medium py-2 px-4">
             Test mode: authentication disabled
           </div>
           <Routes>
@@ -30,6 +31,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/quotations"
+              element={
+                <ProtectedRoute>
+                  <Quotations />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
@@ -39,4 +48,3 @@ const App = () => (
 );
 
 export default App;
-

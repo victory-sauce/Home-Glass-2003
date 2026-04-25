@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   supabase,
   isSupabaseConfigured,
@@ -23,6 +24,7 @@ import { toast } from "sonner";
 const RACKS: RackName[] = ["A", "B", "C", "LEFTOVERS"];
 
 export default function Index() {
+  const navigate = useNavigate();
   const [pieces, setPieces] = useState<GlassPiece[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [openOrders, setOpenOrders] = useState(0);
@@ -169,6 +171,13 @@ export default function Index() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => navigate("/quotations")}
+              >
+                Quotations
+              </Button>
+
               {activeView === "openOrders" && (
                 <Button
                   variant="outline"
