@@ -379,7 +379,6 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
                 value="non_vat"
                 selected={form.receipt_type === "non_vat"}
                 title="Non-VAT receipt"
-                description="For normal receipt without VAT tax invoice."
                 onSelect={() => set("receipt_type", "non_vat")}
               />
 
@@ -387,7 +386,6 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
                 value="vat"
                 selected={form.receipt_type === "vat"}
                 title="VAT receipt"
-                description="For VAT receipt / tax invoice workflow."
                 onSelect={() => set("receipt_type", "vat")}
               />
             </div>
@@ -582,13 +580,11 @@ function ReceiptOption({
   value,
   selected,
   title,
-  description,
   onSelect,
 }: {
   value: "vat" | "non_vat";
   selected: boolean;
   title: string;
-  description: string;
   onSelect: () => void;
 }) {
   return (
@@ -610,7 +606,6 @@ function ReceiptOption({
 
       <div>
         <div className="font-semibold text-slate-950">{title}</div>
-        <div className="mt-1 text-sm text-muted-foreground">{description}</div>
       </div>
     </label>
   );
