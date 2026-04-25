@@ -145,9 +145,14 @@ All colors MUST be HSL.
 }
 
 .quote-print-item {
-  margin-top: 10px;
+  margin-top: 8px;
   border: 1px solid #94a3b8;
-  padding: 10px;
+  padding: 8px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.quote-print-core {
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -155,6 +160,7 @@ All colors MUST be HSL.
 .print-drawing {
   width: 100%;
   max-width: 100%;
+  max-height: 78mm;
   border: 1px solid #cbd5e1 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -179,10 +185,21 @@ All colors MUST be HSL.
 
   .screen-only {
     display: none !important;
+    visibility: hidden !important;
   }
 
   .print-only {
     display: block !important;
+    visibility: visible !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible;
   }
 
   .quotation-print-document {
@@ -197,6 +214,13 @@ All colors MUST be HSL.
     border-radius: 0 !important;
     box-shadow: none !important;
     background: #fff !important;
+  }
+
+  .print-only {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
   }
 
   .print-hide,

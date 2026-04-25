@@ -52,30 +52,32 @@ export function PrintableQuotation({ quotation }: PrintableQuotationProps) {
 
       {quotation.items.map((item) => (
         <article key={item.id} className="quote-print-item">
-          <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-300 pb-2">
-            <div>
-              <div className="text-base font-semibold">{item.itemCode}</div>
-              <div className="text-sm">{item.productName}</div>
+          <div className="quote-print-core">
+            <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-300 pb-2">
+              <div>
+                <div className="text-base font-semibold">{item.itemCode}</div>
+                <div className="text-sm">{item.productName}</div>
+              </div>
+              <div className="text-sm">Quantity: {item.quantity} set(s)</div>
             </div>
-            <div className="text-sm">Quantity: {item.quantity} set(s)</div>
+
+            <SlidingDoorDrawing
+              widthMm={item.widthMm}
+              heightMm={item.heightMm}
+              floorLevelMm={item.floorLevelMm}
+              panelCount={item.panelCount}
+              quantity={item.quantity}
+              showTopView={false}
+              showLock={item.showLock}
+              lockPosition={item.lockPosition}
+              viewDirection={item.viewDirection}
+              itemCode={item.itemCode}
+              productName={item.productName}
+              className="print-drawing"
+            />
           </div>
 
-          <SlidingDoorDrawing
-            widthMm={item.widthMm}
-            heightMm={item.heightMm}
-            floorLevelMm={item.floorLevelMm}
-            panelCount={item.panelCount}
-            quantity={item.quantity}
-            showTopView
-            showLock={item.showLock}
-            lockPosition={item.lockPosition}
-            viewDirection={item.viewDirection}
-            itemCode={item.itemCode}
-            productName={item.productName}
-            className="print-drawing"
-          />
-
-          <table className="quote-print-spec-table mt-3 w-full border-collapse text-sm">
+          <table className="quote-print-spec-table mt-2 w-full border-collapse text-sm">
             <tbody>
               <PrintableRow label="Width" value={`${item.widthMm} mm`} />
               <PrintableRow label="Height" value={`${item.heightMm} mm`} />
@@ -103,7 +105,7 @@ export function PrintableQuotation({ quotation }: PrintableQuotationProps) {
         </article>
       ))}
 
-      <footer className="quotation-signoff mt-6 border-t border-slate-400 pt-4 text-sm">
+      <footer className="quotation-signoff mt-4 border-t border-slate-400 pt-3 text-sm">
         <p>
           The customer confirms that all product dimensions, opening direction,
           glass type, frame color, hardware, quantity, and installation location
@@ -115,22 +117,22 @@ export function PrintableQuotation({ quotation }: PrintableQuotationProps) {
           ตามแบบและใบเสนอราคานี้ถูกต้องแล้ว และอนุมัติให้ดำเนินการผลิตได้
         </p>
 
-        <div className="mt-5 grid grid-cols-3 gap-4 text-xs">
+        <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
           <div>
             <div>Customer signature</div>
-            <div className="mt-8 border-b border-slate-500" />
+            <div className="mt-6 border-b border-slate-500" />
           </div>
           <div>
             <div>Date</div>
-            <div className="mt-8 border-b border-slate-500" />
+            <div className="mt-6 border-b border-slate-500" />
           </div>
           <div>
             <div>Salesperson / Prepared by</div>
-            <div className="mt-8 border-b border-slate-500" />
+            <div className="mt-6 border-b border-slate-500" />
           </div>
         </div>
 
-        <p className="mt-4 text-xs">Please verify all dimensions before signing.</p>
+        <p className="mt-3 text-xs">Please verify all dimensions before signing.</p>
       </footer>
     </section>
   );
