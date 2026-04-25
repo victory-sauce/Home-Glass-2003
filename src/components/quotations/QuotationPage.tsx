@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FilePlus2, GlassWater, Printer, Save } from "lucide-react";
 import { QuoteItemCard } from "./QuoteItemCard";
+import { SAMPLE_ITEM, SAMPLE_QUOTATION } from "./sampleData";
 import type { QuoteItem, Quotation } from "./types";
 
 const SIGN_OFF_EN =
@@ -21,37 +22,6 @@ const SIGN_OFF_EN =
 
 const SIGN_OFF_TH =
   "ลูกค้าได้ตรวจสอบและยืนยันขนาดสินค้า ทิศทางการเปิด-ปิด ประเภทกระจก สีกรอบ อุปกรณ์ จำนวนชุด และตำแหน่งติดตั้ง ตามแบบและใบเสนอราคานี้ถูกต้องแล้ว และอนุมัติให้ดำเนินการผลิตได้";
-
-const SAMPLE_ITEM: QuoteItem = {
-  id: "item-d61",
-  itemCode: "D6.1",
-  productName: "3-panel sliding glass door",
-  quantity: 2,
-  widthMm: 6000,
-  heightMm: 2395,
-  floorLevelMm: 1000,
-  panelCount: 3,
-  aluminumColor: "White",
-  glassType: "Clear tempered glass",
-  hardware: "Lock with key",
-  showLock: true,
-  lockPosition: "right",
-  viewDirection: "inside",
-  location: "Living room",
-};
-
-const SAMPLE_QUOTATION: Quotation = {
-  id: "q-001",
-  quoteNumber: "QT-2026-0001",
-  customerName: "Sample Customer",
-  customerPhone: "081-234-5678",
-  projectName: "Home renovation phase 1",
-  location: "Bangkok",
-  status: "draft",
-  notes: "Initial quotation preview with sliding door template.",
-  quoteDate: new Date().toISOString().slice(0, 10),
-  items: [SAMPLE_ITEM],
-};
 
 export function QuotationPage() {
   const navigate = useNavigate();
@@ -116,45 +86,46 @@ export function QuotationPage() {
   };
 
   const printPreview = () => {
-    window.print();
+    window.open("/quotations/print", "_blank", "noopener,noreferrer");
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-glow">
-                <GlassWater className="h-8 w-8 text-primary-foreground" />
+    <>
+      <div className="screen-only min-h-screen bg-background">
+        <header className="border-b border-border bg-card">
+          <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-glow">
+                  <GlassWater className="h-8 w-8 text-primary-foreground" />
+                </div>
+
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                    Home Glass 2003
+                  </h1>
+                  <p className="text-muted-foreground">
+                    Quotations module · SVG technical preview
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                  Home Glass 2003
-                </h1>
-                <p className="text-muted-foreground">
-                  Quotations module · SVG technical preview
-                </p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => navigate("/")}>
+                  Dashboard
+                </Button>
+                <Button variant="outline" onClick={printPreview}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print / PDF preview
+                </Button>
               </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => navigate("/")}>
-                Dashboard
-              </Button>
-              <Button variant="outline" onClick={printPreview}>
-                <Printer className="mr-2 h-4 w-4" />
-                Print / PDF preview
-              </Button>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_1fr] lg:px-8 print:grid-cols-1">
-        <section className="space-y-4 print:hidden">
-          <Card>
+        <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_1fr] lg:px-8">
+          <section className="space-y-4">
+            <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-lg">
                 Quotation list
@@ -541,10 +512,12 @@ export function QuotationPage() {
 -- create table quote_items (... references quotations(id) on delete cascade);`}
               </pre>
             </CardContent>
-          </Card>
-        </section>
-      </main>
-    </div>
+            </Card>
+          </section>
+        </main>
+      </div>
+
+    </>
   );
 }
 
