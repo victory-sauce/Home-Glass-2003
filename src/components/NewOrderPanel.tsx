@@ -1,24 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
+import { PackagePlus, Lock, ReceiptText, Scissors } from "lucide-react";
 import { supabase, type GlassPiece, type Order } from "@/lib/supabase";
-import { getRecommendations, type Recommendation } from "@/lib/recommend";
+import { generateCutPlans, type CutPlan } from "@/lib/cutPlanner";
+import { OrderItemsEditor, type EditableOrderItem } from "@/components/OrderItemsEditor";
+import { CutLayoutPreview } from "@/components/CutLayoutPreview";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import {
-  PackagePlus,
-  Lock,
-  RotateCw,
-  Search,
-  Scissors,
-  Layers,
-  CheckCircle2,
-  ReceiptText,
-} from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -26,120 +18,88 @@ interface Props {
   onChange: () => void;
 }
 
-const initial = {
+const initialForm = {
   customer_name: "",
   customer_phone: "",
-  glass_type: "Clear",
-  width: "",
-  height: "",
-  thickness: "6",
   notes: "",
-  allow_rotation: true,
   receipt_type: "non_vat" as "vat" | "non_vat",
 };
 
-function rackLabel(rack: string) {
-  return rack === "LEFTOVERS" ? "Leftovers" : `Rack ${rack}`;
-}
-
-function formatWaste(value: number) {
-  return `${Math.round(value).toLocaleString()} mm²`;
-}
-
-function matchQualityLabel(index: number) {
-  if (index === 0) return "Best match";
-  if (index <= 2) return "Good option";
-  return "Alternative";
+function makeInitialItem(): EditableOrderItem {
+  return {
+    id: crypto.randomUUID(),
+    width: 0,
+    height: 0,
+    quantity: 1,
+    thickness: 6,
+    glass_type: "Clear",
+    allow_rotation: true,
+    notes: "",
+  };
 }
 
 function receiptLabel(value: "vat" | "non_vat") {
   return value === "vat" ? "VAT receipt" : "Non-VAT receipt";
 }
 
+function validItems(items: EditableOrderItem[]) {
+  return items.filter(
+    (item) =>
+      Number(item.width) > 0 &&
+      Number(item.height) > 0 &&
+      Number(item.quantity) > 0 &&
+      Number(item.thickness) > 0 &&
+      item.glass_type
+  );
+}
+
 export function NewOrderPanel({ pieces, onChange }: Props) {
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState(initialForm);
   const [busy, setBusy] = useState(false);
-  const [order, setOrder] = useState<Order | null>(null);
-  const [selectedRecommendation, setSelectedRecommendation] =
-    useState<Recommendation | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+  const [items, setItems] = useState<EditableOrderItem[]>([makeInitialItem()]);
 
-  const spec = useMemo(() => {
-    const width = Number.parseFloat(form.width);
-    const height = Number.parseFloat(form.height);
-    const thickness = Number.parseFloat(form.thickness);
+  const plans = useMemo(() => generateCutPlans(validItems(items), pieces), [items, pieces]);
+  const bestPlan = plans[0] ?? null;
 
-    if (!form.glass_type || !width || !height || !thickness) return null;
-
-    return {
-      glass_type: form.glass_type,
-      width,
-      height,
-      thickness,
-      allow_rotation: form.allow_rotation,
-    };
-  }, [form]);
-
-  const recommendations = useMemo(() => {
-    if (!spec) return [];
-    return getRecommendations(pieces, spec);
-  }, [pieces, spec]);
-
-  const bestRecommendation = recommendations[0] ?? null;
-
-  useEffect(() => {
-    setSelectedRecommendation(bestRecommendation);
-  }, [bestRecommendation]);
-
-  const set = (key: keyof typeof initial, value: string | boolean) => {
-    setForm((current) => ({ ...current, [key]: value }));
+  const set = (key: keyof typeof initialForm, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const reset = () => {
-    setForm(initial);
-    setOrder(null);
-    setSelectedRecommendation(null);
+    setForm(initialForm);
+    setItems([makeInitialItem()]);
+    setCreatedOrder(null);
   };
 
   const createOrder = async () => {
-    if (!spec || !form.customer_name.trim()) {
-      toast.error("Fill in customer name and glass spec");
+    const cleanedItems = validItems(items);
+
+    if (!form.customer_name.trim() || cleanedItems.length === 0) {
+      toast.error("Customer name and at least one order item are required");
       return;
     }
 
     setBusy(true);
 
     try {
+      const customerName = form.customer_name.trim();
+      const phone = form.customer_phone.trim();
+
       let customerId: string | null = null;
 
-      const phone = form.customer_phone.trim();
-      const customerName = form.customer_name.trim();
-
       if (phone) {
-        const { data: existing } = await supabase
-          .from("customers")
-          .select("id")
-          .eq("phone", phone)
-          .maybeSingle();
-
-        if (existing?.id) {
-          customerId = existing.id;
-        }
+        const { data: existing } = await supabase.from("customers").select("id").eq("phone", phone).maybeSingle();
+        customerId = existing?.id ?? null;
       }
 
       if (!customerId) {
-        const { data: existingByName } = await supabase
-          .from("customers")
-          .select("id")
-          .eq("name", customerName)
-          .maybeSingle();
-
-        if (existingByName?.id) {
-          customerId = existingByName.id;
-        }
+        const { data: existingByName } = await supabase.from("customers").select("id").eq("name", customerName).maybeSingle();
+        customerId = existingByName?.id ?? null;
       }
 
       if (!customerId) {
-        const { data: created, error } = await supabase
+        const { data, error } = await supabase
           .from("customers")
           .insert({
             name: customerName,
@@ -150,119 +110,121 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           .single();
 
         if (error) throw error;
-
-        customerId = created.id;
+        customerId = data.id;
       }
 
-      const { data: createdOrder, error: orderError } = await supabase
+      const firstItem = cleanedItems[0];
+
+      const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .insert({
           customer_id: customerId,
           customer_name_snapshot: customerName,
           customer_phone_snapshot: phone || null,
-          glass_type: spec.glass_type,
-          width: spec.width,
-          height: spec.height,
-          thickness: spec.thickness,
+          glass_type: firstItem.glass_type,
+          width: firstItem.width,
+          height: firstItem.height,
+          thickness: firstItem.thickness,
+          allow_rotation: firstItem.allow_rotation,
           notes: form.notes || null,
-          allow_rotation: spec.allow_rotation,
           receipt_type: form.receipt_type,
           status: "open",
-          selected_piece_id: selectedRecommendation?.piece.id ?? null,
+          selected_piece_id: bestPlan?.sources[0]?.sourcePiece.id ?? null,
         })
         .select("*")
         .single();
 
       if (orderError) throw orderError;
 
-      setOrder(createdOrder as Order);
+      const orderItemsPayload = cleanedItems.map((item) => ({
+        order_id: orderData.id,
+        width: item.width,
+        height: item.height,
+        quantity: item.quantity,
+        thickness: item.thickness,
+        glass_type: item.glass_type,
+        allow_rotation: item.allow_rotation,
+        notes: item.notes || null,
+      }));
+
+      const { error: itemError } = await supabase.from("order_items").insert(orderItemsPayload);
+      if (itemError) throw itemError;
 
       await supabase.from("audit_logs").insert({
         action: "create_order",
         entity_type: "order",
-        entity_id: createdOrder.id,
+        entity_id: orderData.id,
         details: {
-          customer_name: customerName,
-          customer_phone: phone || null,
-          glass_type: spec.glass_type,
-          width: spec.width,
-          height: spec.height,
-          thickness: spec.thickness,
           receipt_type: form.receipt_type,
           receipt_label: receiptLabel(form.receipt_type),
-          recommended_piece: selectedRecommendation?.piece.code ?? null,
+          item_count: cleanedItems.length,
+          plan_sources: bestPlan?.usedSourceCount ?? 0,
+          plan_waste: bestPlan?.totalWaste ?? null,
         },
       });
 
+      setCreatedOrder(orderData as Order);
       toast.success(`Order created · ${receiptLabel(form.receipt_type)}`);
       onChange();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to create order";
-
-      toast.error(message);
+      toast.error(error instanceof Error ? error.message : "Failed to create order");
     } finally {
       setBusy(false);
     }
   };
 
-  const reservePiece = async (recommendation?: Recommendation | null) => {
-    const target = recommendation ?? selectedRecommendation;
-
-    if (!order) {
+  const reservePlan = async (plan: CutPlan | null) => {
+    if (!createdOrder) {
       toast.error("Create the order first");
       return;
     }
 
-    if (!target) {
-      toast.error("No matching piece selected");
+    if (!plan || plan.sources.length === 0) {
+      toast.error("No plan with source pieces available");
       return;
     }
 
     setBusy(true);
 
     try {
-      const { error: pieceError } = await supabase
-        .from("glass_pieces")
-        .update({
-          status: "reserved",
-          reserved_order_id: order.id,
-        })
-        .eq("id", target.piece.id);
+      const sourceIds = plan.sources.map((source) => source.sourcePiece.id);
 
-      if (pieceError) throw pieceError;
+      const { error: piecesError } = await supabase
+        .from("glass_pieces")
+        .update({ status: "reserved", reserved_order_id: createdOrder.id })
+        .in("id", sourceIds);
+
+      if (piecesError) throw piecesError;
 
       const { error: orderError } = await supabase
         .from("orders")
         .update({
-          selected_piece_id: target.piece.id,
           status: "reserved",
+          selected_piece_id: plan.sources[0]?.sourcePiece.id ?? null,
         })
-        .eq("id", order.id);
+        .eq("id", createdOrder.id);
 
       if (orderError) throw orderError;
 
       await supabase.from("audit_logs").insert({
-        action: "reserve_piece",
-        entity_type: "glass_piece",
-        entity_id: target.piece.id,
+        action: "reserve_cut_plan",
+        entity_type: "order",
+        entity_id: createdOrder.id,
         details: {
-          order_id: order.id,
-          piece_code: target.piece.code,
-          rotated: target.rotated,
-          waste: target.waste,
-          receipt_type: order.receipt_type,
+          source_piece_ids: sourceIds,
+          source_piece_codes: plan.sources.map((source) => source.sourcePiece.code),
+          used_sources: plan.usedSourceCount,
+          total_waste: plan.totalWaste,
+          unplaced_items: plan.unplacedItems.length,
+          receipt_type: createdOrder.receipt_type,
         },
       });
 
-      toast.success(`Reserved piece ${target.piece.code}`);
+      toast.success(`Reserved ${sourceIds.length} source piece(s)`);
       onChange();
       reset();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to reserve piece";
-
-      toast.error(message);
+      toast.error(error instanceof Error ? error.message : "Failed to reserve plan");
     } finally {
       setBusy(false);
     }
@@ -275,281 +237,84 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500 text-white shadow-lg shadow-cyan-500/20">
             <PackagePlus className="h-7 w-7" />
           </div>
-
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-foreground">
-              New customer order
-            </h2>
-            <p className="text-muted-foreground">
-              Capture order, search inventory, and reserve the best matching
-              piece
-            </p>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">New customer order</h2>
+            <p className="text-muted-foreground">Multi-piece order capture with first-pass cut planning.</p>
           </div>
-
-          {order && (
-            <Badge className="ml-auto rounded-full px-3 py-1">
-              Order #{order.id.slice(0, 8)} · {order.status}
-            </Badge>
-          )}
+          {createdOrder && <Badge className="ml-auto">Order #{createdOrder.id.slice(0, 8)}</Badge>}
         </div>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-5 p-6">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <Field label="Customer name">
-              <Input
-                value={form.customer_name}
-                onChange={(event) => set("customer_name", event.target.value)}
-                className="h-12"
-              />
+              <Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} className="h-11" />
             </Field>
-
             <Field label="Phone / Contact">
-              <Input
-                value={form.customer_phone}
-                onChange={(event) => set("customer_phone", event.target.value)}
-                className="h-12"
-              />
-            </Field>
-
-            <Field label="Glass type">
-              <select
-                value={form.glass_type}
-                onChange={(event) => set("glass_type", event.target.value)}
-                className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="Clear">Clear</option>
-                <option value="Tinted">Tinted</option>
-                <option value="Mirror">Mirror</option>
-                <option value="Tempered">Tempered</option>
-                <option value="Laminated">Laminated</option>
-              </select>
-            </Field>
-
-            <Field label="Width (mm)">
-              <Input
-                type="number"
-                value={form.width}
-                onChange={(event) => set("width", event.target.value)}
-                className="h-12"
-              />
-            </Field>
-
-            <Field label="Height (mm)">
-              <Input
-                type="number"
-                value={form.height}
-                onChange={(event) => set("height", event.target.value)}
-                className="h-12"
-              />
-            </Field>
-
-            <Field label="Thickness (mm)">
-              <select
-                value={form.thickness}
-                onChange={(event) => set("thickness", event.target.value)}
-                className="h-12 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="5">5mm</option>
-                <option value="6">6mm</option>
-                <option value="8">8mm</option>
-                <option value="10">10mm</option>
-                <option value="12">12mm</option>
-              </select>
+              <Input value={form.customer_phone} onChange={(e) => set("customer_phone", e.target.value)} className="h-11" />
             </Field>
           </div>
 
           <div className="rounded-2xl border border-border bg-slate-50 p-4">
             <div className="mb-3 flex items-center gap-2">
               <ReceiptText className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="font-semibold text-foreground">
-                  Receipt type
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  This will be used later to trigger the correct Flow Account
-                  process.
-                </div>
-              </div>
+              <div className="font-semibold">Receipt type</div>
             </div>
-
             <div className="grid gap-3 md:grid-cols-2">
-              <ReceiptOption
-                value="non_vat"
-                selected={form.receipt_type === "non_vat"}
-                title="Non-VAT receipt"
-                onSelect={() => set("receipt_type", "non_vat")}
-              />
-
-              <ReceiptOption
-                value="vat"
-                selected={form.receipt_type === "vat"}
-                title="VAT receipt"
-                onSelect={() => set("receipt_type", "vat")}
-              />
+              <ReceiptOption value="non_vat" selected={form.receipt_type === "non_vat"} title="Non-VAT receipt" onSelect={() => set("receipt_type", "non_vat")} />
+              <ReceiptOption value="vat" selected={form.receipt_type === "vat"} title="VAT receipt" onSelect={() => set("receipt_type", "vat")} />
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[1fr_320px]">
-            <Field label="Notes">
-              <Textarea
-                value={form.notes}
-                onChange={(event) => set("notes", event.target.value)}
-                className="min-h-28"
-              />
-            </Field>
-
-            <div className="flex items-end">
-              <label className="flex h-12 w-full cursor-pointer items-center gap-3 rounded-lg border border-input bg-background px-4">
-                <Checkbox
-                  checked={form.allow_rotation}
-                  onCheckedChange={(value) =>
-                    set("allow_rotation", Boolean(value))
-                  }
-                />
-                <span className="text-sm font-medium">Allow rotation</span>
-                <RotateCw className="ml-auto h-4 w-4 text-muted-foreground" />
-              </label>
-            </div>
+          <div>
+            <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Order items</div>
+            <OrderItemsEditor items={items} onChange={setItems} />
           </div>
+
+          <Field label="Order notes">
+            <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} className="min-h-24" />
+          </Field>
 
           <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={createOrder}
-              disabled={busy || !!order}
-              className="h-12 px-6 text-base font-semibold"
-            >
-              <PackagePlus className="mr-2 h-5 w-5" />
-              Create order
+            <Button onClick={createOrder} disabled={busy || !!createdOrder} className="h-11">
+              <PackagePlus className="mr-2 h-4 w-4" />
+              Create Order
             </Button>
-
-            <Button
-              onClick={() => reservePiece()}
-              disabled={busy || !order || !selectedRecommendation}
-              variant="secondary"
-              className="h-12 bg-gradient-accent px-6 text-base font-semibold text-primary-foreground hover:opacity-90"
-            >
-              <Lock className="mr-2 h-5 w-5" />
-              Reserve selected piece
+            <Button onClick={() => reservePlan(bestPlan)} disabled={busy || !createdOrder || !bestPlan?.sources.length} variant="secondary" className="h-11 bg-gradient-accent text-primary-foreground">
+              <Lock className="mr-2 h-4 w-4" />
+              Reserve Plan
             </Button>
-
-            {order && (
-              <Button onClick={reset} variant="ghost" className="h-12">
-                New order
-              </Button>
-            )}
+            {createdOrder && <Button variant="ghost" onClick={reset}>New Order</Button>}
           </div>
         </div>
 
         <div className="border-t bg-slate-50 p-6 lg:border-l lg:border-t-0">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
-              <Search className="h-5 w-5" />
-            </div>
-
-            <div>
-              <h3 className="font-bold text-foreground">
-                Available matching pieces
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Leftovers first, then regular racks by least waste
-              </p>
-            </div>
+          <div className="mb-3 flex items-center gap-2">
+            <Scissors className="h-5 w-5 text-blue-700" />
+            <h3 className="font-bold">Generate Cut Plan</h3>
           </div>
 
-          {!spec && (
-            <div className="rounded-2xl border border-dashed border-border bg-white p-5 text-sm text-muted-foreground">
-              Fill glass type, width, height and thickness to preview matching
-              inventory options.
-            </div>
-          )}
+          {!bestPlan && <div className="rounded-xl border border-dashed bg-white p-4 text-sm text-muted-foreground">Add valid order items to generate a plan.</div>}
 
-          {spec && recommendations.length === 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-              No available piece matches this size, thickness and glass type.
-            </div>
-          )}
-
-          {spec && recommendations.length > 0 && (
+          {bestPlan && (
             <div className="space-y-3">
-              {recommendations.slice(0, 8).map((recommendation, index) => {
-                const selected =
-                  selectedRecommendation?.piece.id === recommendation.piece.id;
-                const isLeftover = recommendation.piece.rack === "LEFTOVERS";
-
-                return (
-                  <button
-                    key={recommendation.piece.id}
-                    type="button"
-                    onClick={() => setSelectedRecommendation(recommendation)}
-                    className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md ${
-                      selected
-                        ? "border-blue-500 ring-4 ring-blue-100"
-                        : "border-slate-200"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-lg font-bold text-slate-950">
-                            {recommendation.piece.code}
-                          </span>
-
-                          <Badge
-                            variant={index === 0 ? "default" : "secondary"}
-                            className="rounded-full"
-                          >
-                            {matchQualityLabel(index)}
-                          </Badge>
-
-                          {isLeftover && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200">
-                              <Scissors className="h-3 w-3" />
-                              Leftover
-                            </span>
-                          )}
-
-                          {selected && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Selected
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="mt-2 text-sm text-slate-600">
-                          {recommendation.piece.width}×
-                          {recommendation.piece.height}mm ·{" "}
-                          {recommendation.piece.thickness}mm ·{" "}
-                          {recommendation.piece.glass_type}
-                        </div>
-
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <span>{rackLabel(recommendation.piece.rack)}</span>
-                          <span>·</span>
-                          <span>Waste {formatWaste(recommendation.waste)}</span>
-                          {recommendation.rotated && (
-                            <>
-                              <span>·</span>
-                              <span>Rotated fit</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-                        <Layers className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-
-              {recommendations.length > 8 && (
-                <div className="rounded-xl border border-dashed border-border bg-white p-3 text-center text-sm text-muted-foreground">
-                  +{recommendations.length - 8} more matching pieces not shown
+              <div className="rounded-xl border bg-white p-3 text-sm">
+                <div className="font-semibold text-slate-900">Best plan score: {bestPlan.score.toFixed(1)}</div>
+                <div className="text-muted-foreground">
+                  {bestPlan.fulfilled ? "All requested cuts are placeable." : `${bestPlan.unplacedItems.length} cut(s) unplaced.`}
                 </div>
+                <div className="mt-1 text-muted-foreground">
+                  Sources: {bestPlan.usedSourceCount} · Waste: {Math.round(bestPlan.totalWaste).toLocaleString()} mm²
+                </div>
+              </div>
+
+              {bestPlan.sources.slice(0, 3).map((source) => (
+                <CutLayoutPreview key={source.sourcePiece.id} source={source} />
+              ))}
+
+              {bestPlan.sources.length > 3 && (
+                <div className="text-center text-xs text-muted-foreground">+{bestPlan.sources.length - 3} more source layout(s) in plan</div>
               )}
             </div>
           )}
@@ -559,18 +324,10 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </Label>
+    <div>
+      <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
@@ -588,25 +345,9 @@ function ReceiptOption({
   onSelect: () => void;
 }) {
   return (
-    <label
-      className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
-        selected
-          ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100"
-          : "border-slate-200 bg-white hover:border-blue-200"
-      }`}
-    >
-      <input
-        type="radio"
-        name="receipt_type"
-        value={value}
-        checked={selected}
-        onChange={onSelect}
-        className="mt-1 h-4 w-4 accent-blue-600"
-      />
-
-      <div>
-        <div className="font-semibold text-slate-950">{title}</div>
-      </div>
+    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${selected ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-200"}`}>
+      <input type="radio" name="receipt_type" value={value} checked={selected} onChange={onSelect} className="mt-1 h-4 w-4 accent-blue-600" />
+      <div className="font-semibold text-slate-950">{title}</div>
     </label>
   );
 }
