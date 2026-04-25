@@ -80,3 +80,16 @@ export interface Order {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  width: number;
+  height: number;
+  quantity: number;
+  thickness: number;
+  glass_type: string;
+  allow_rotation: boolean;
+  notes: string | null;
+  created_at?: string;
+}
