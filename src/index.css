@@ -188,20 +188,6 @@ All colors MUST be HSL.
     visibility: hidden !important;
   }
 
-  .print-only {
-    display: block !important;
-    visibility: visible !important;
-  }
-
-  body * {
-    visibility: hidden;
-  }
-
-  .print-only,
-  .print-only * {
-    visibility: visible;
-  }
-
   .quotation-print-document {
     max-width: 100%;
     border: none !important;
@@ -214,13 +200,8 @@ All colors MUST be HSL.
     border-radius: 0 !important;
     box-shadow: none !important;
     background: #fff !important;
-  }
-
-  .print-only {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .print-hide,

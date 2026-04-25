@@ -1,21 +1,26 @@
 import { SlidingDoorDrawing } from "@/components/drawings/SlidingDoorDrawing";
+import { cn } from "@/lib/utils";
 import type { Quotation } from "./types";
 
 type PrintableQuotationProps = {
   quotation?: Quotation;
+  className?: string;
 };
 
-export function PrintableQuotation({ quotation }: PrintableQuotationProps) {
+export function PrintableQuotation({
+  quotation,
+  className,
+}: PrintableQuotationProps) {
   if (!quotation) {
     return (
-      <section className="print-only quotation-print-document">
+      <section className={cn("quotation-print-document", className)}>
         <div className="text-sm text-slate-700">No quotation selected.</div>
       </section>
     );
   }
 
   return (
-    <section className="print-only quotation-print-document">
+    <section className={cn("quotation-print-document", className)}>
       <header className="quotation-print-header">
         <div>
           <h1 className="text-2xl font-bold">Home Glass 2003</h1>
