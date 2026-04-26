@@ -1,9 +1,7 @@
-import type { ReactNode } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import type { CutPlanOrderItem } from "@/lib/cutPlanner";
 
 export type EditableOrderItem = CutPlanOrderItem;
@@ -49,115 +47,107 @@ export function OrderItemsEditor({ items, onChange }: Props) {
         </div>
       )}
 
-      {items.map((item, index) => (
-        <div key={item.id} className="rounded-xl border bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-900">Item #{index + 1}</div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => removeItem(item.id)}
-              className="text-rose-600 hover:text-rose-700"
-            >
-              <Trash2 className="mr-1 h-4 w-4" />
-              Delete
-            </Button>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="Width (mm)">
-              <Input
-                type="number"
-                min={1}
-                value={item.width || ""}
-                onChange={(event) => updateItem(item.id, "width", Number(event.target.value) || 0)}
-              />
-            </Field>
-
-            <Field label="Height (mm)">
-              <Input
-                type="number"
-                min={1}
-                value={item.height || ""}
-                onChange={(event) => updateItem(item.id, "height", Number(event.target.value) || 0)}
-              />
-            </Field>
-
-            <Field label="Quantity">
-              <Input
-                type="number"
-                min={1}
-                value={item.quantity || 1}
-                onChange={(event) => updateItem(item.id, "quantity", Math.max(1, Number(event.target.value) || 1))}
-              />
-            </Field>
-
-            <Field label="Thickness (mm)">
-              <Input
-                type="number"
-                min={1}
-                step="0.1"
-                value={item.thickness || ""}
-                onChange={(event) => updateItem(item.id, "thickness", Number(event.target.value) || 0)}
-              />
-            </Field>
-
-            <Field label="Glass type">
-              <select
-                value={item.glass_type}
-                onChange={(event) => updateItem(item.id, "glass_type", event.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {GLASS_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Notes">
-              <Input
-                value={item.notes ?? ""}
-                onChange={(event) => updateItem(item.id, "notes", event.target.value)}
-                placeholder="Optional item note"
-              />
-            </Field>
-
-            <div className="md:col-span-2">
-              <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Rotation
-              </Label>
-              <label className="flex h-10 items-center gap-3 rounded-md border border-input px-3">
-                <Checkbox
-                  checked={item.allow_rotation}
-                  onCheckedChange={(value) =>
-                    updateItem(item.id, "allow_rotation", Boolean(value))
-                  }
-                />
-                <span className="text-sm">Allow rotation if needed</span>
-              </label>
-            </div>
-          </div>
-        </div>
-      ))}
+      <div className="overflow-x-auto rounded-xl border border-border bg-white">
+        <table className="min-w-[980px] w-full text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-2 py-2 text-left font-semibold">Item #</th>
+              <th className="px-2 py-2 text-left font-semibold">Width</th>
+              <th className="px-2 py-2 text-left font-semibold">Height</th>
+              <th className="px-2 py-2 text-left font-semibold">Qty</th>
+              <th className="px-2 py-2 text-left font-semibold">Thickness</th>
+              <th className="px-2 py-2 text-left font-semibold">Glass Type</th>
+              <th className="px-2 py-2 text-left font-semibold">Rotation</th>
+              <th className="px-2 py-2 text-left font-semibold">Notes</th>
+              <th className="px-2 py-2 text-right font-semibold">Delete</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, index) => (
+              <tr key={item.id} className="border-t align-top">
+                <td className="px-2 py-2 font-semibold text-slate-900">{index + 1}</td>
+                <td className="px-2 py-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={item.width || ""}
+                    onChange={(event) => updateItem(item.id, "width", Number(event.target.value) || 0)}
+                    className="h-9"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={item.height || ""}
+                    onChange={(event) => updateItem(item.id, "height", Number(event.target.value) || 0)}
+                    className="h-9"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={item.quantity || 1}
+                    onChange={(event) => updateItem(item.id, "quantity", Math.max(1, Number(event.target.value) || 1))}
+                    className="h-9"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    step="0.1"
+                    value={item.thickness || ""}
+                    onChange={(event) => updateItem(item.id, "thickness", Number(event.target.value) || 0)}
+                    className="h-9"
+                  />
+                </td>
+                <td className="px-2 py-2">
+                  <select
+                    value={item.glass_type}
+                    onChange={(event) => updateItem(item.id, "glass_type", event.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {GLASS_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-2 py-2">
+                  <label className="flex h-9 items-center gap-2 rounded-md border border-input px-2 text-xs">
+                    <Checkbox
+                      checked={item.allow_rotation}
+                      onCheckedChange={(value) => updateItem(item.id, "allow_rotation", Boolean(value))}
+                    />
+                    Allow
+                  </label>
+                </td>
+                <td className="px-2 py-2">
+                  <Input
+                    value={item.notes ?? ""}
+                    onChange={(event) => updateItem(item.id, "notes", event.target.value)}
+                    placeholder="Optional note"
+                    className="h-9"
+                  />
+                </td>
+                <td className="px-2 py-2 text-right">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="h-9 w-9 text-rose-600 hover:text-rose-700">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <Button type="button" variant="outline" onClick={() => onChange([...items, makeNewItem()])}>
         <Plus className="mr-2 h-4 w-4" />
         Add item
       </Button>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </Label>
-      {children}
     </div>
   );
 }
