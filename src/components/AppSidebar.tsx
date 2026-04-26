@@ -7,6 +7,7 @@ import {
   Recycle,
   Scissors,
   Settings,
+  ReceiptText,
 } from "lucide-react";
 
 export type ActiveView =
@@ -16,6 +17,7 @@ export type ActiveView =
   | "inventory"
   | "cutPlanner"
   | "leftovers"
+  | "quotations"
   | "auditLogs"
   | "settings";
 
@@ -32,9 +34,10 @@ const navItems: Array<{
   { value: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { value: "newOrder", label: "New Order", icon: PackagePlus },
   { value: "openOrders", label: "Open Orders", icon: ClipboardList },
-  { value: "inventory", label: "Racks / Inventory", icon: Layers },
   { value: "cutPlanner", label: "Cut Planner", icon: Scissors },
+  { value: "inventory", label: "Racks / Inventory", icon: Layers },
   { value: "leftovers", label: "Offcuts / Leftovers", icon: Recycle },
+  { value: "quotations", label: "Quotations", icon: ReceiptText },
   { value: "auditLogs", label: "Audit Logs", icon: History },
   { value: "settings", label: "Settings", icon: Settings },
 ];
