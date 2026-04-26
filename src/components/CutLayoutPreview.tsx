@@ -2,25 +2,38 @@ import type { CutPlanSource } from "@/lib/cutPlanner";
 
 interface Props {
   source: CutPlanSource;
+  variant?: "compact" | "large";
+  maxHeight?: number;
+  showHeader?: boolean;
+  showCutSequence?: boolean;
+  layoutNumber?: number;
 }
 
 function strategyLabel(value: CutPlanSource["layoutStrategy"]) {
   return value === "horizontal_shelf" ? "Horizontal shelf / rows" : "Vertical strip";
 }
 
-export function CutLayoutPreview({ source }: Props) {
+export function CutLayoutPreview({
+  source,
+  variant = "large",
+  maxHeight,
+  showHeader = true,
+  showCutSequence = true,
+  layoutNumber,
+}: Props) {
   const sheetWidth = source.layoutWidth;
   const sheetHeight = source.layoutHeight;
-  const targetMaxWidth = 430;
-  const targetMaxHeight = 260;
+  const targetMaxWidth = variant === "compact" ? 360 : 430;
+  const fallbackMaxHeight = variant === "compact" ? 300 : 340;
+  const targetMaxHeight = Math.max(220, maxHeight ?? fallbackMaxHeight);
   const sheetScale = Math.min(1, targetMaxWidth / sheetWidth, targetMaxHeight / sheetHeight);
-  const frameWidth = Math.max(220, sheetWidth * sheetScale);
-  const frameHeight = Math.max(140, sheetHeight * sheetScale);
+  const frameWidth = Math.max(180, sheetWidth * sheetScale);
+  const frameHeight = Math.max(130, sheetHeight * sheetScale);
   const drawingPadding = {
-    top: 34,
-    right: 18,
-    bottom: 50,
-    left: 62,
+    top: 30,
+    right: 16,
+    bottom: 44,
+    left: 54,
   };
   const svgWidth = frameWidth + drawingPadding.left + drawingPadding.right;
   const svgHeight = frameHeight + drawingPadding.top + drawingPadding.bottom;
@@ -43,52 +56,57 @@ export function CutLayoutPreview({ source }: Props) {
     .filter((region) => region.kind === "leftover")
     .sort((a, b) => b.width * b.height - a.width * a.height)[0];
 
-  return (
-    <div className="space-y-3 rounded-2xl border border-border bg-white p-4">
-      <div>
-        <h4 className="text-sm font-semibold text-slate-900">Recommended cut plan</h4>
-        <p className="text-xs text-muted-foreground">Guillotine-feasible layout</p>
-      </div>
+  const shownCutSteps = variant === "compact" ? source.cutSteps.slice(0, 6) : source.cutSteps;
+  const remainingSteps = Math.max(0, source.cutSteps.length - shownCutSteps.length);
+  const markerPrefix = source.sourcePiece.id.slice(0, 8);
 
-      <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-3">
+  return (
+    <div className="space-y-3 rounded-2xl border border-border bg-white p-4 shadow-sm">
+      {showHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-900">
+              Layout {layoutNumber ? `#${layoutNumber}` : "preview"} · {source.sourcePiece.code || "—"}
+            </h4>
+            <p className="text-xs text-muted-foreground">Rack {source.sourcePiece.rack} · Guillotine-feasible layout</p>
+          </div>
+          <div className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">{strategyLabel(source.layoutStrategy)}</div>
+        </div>
+      )}
+
+      <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-[11px] text-slate-700 sm:grid-cols-2">
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Source:</span> {source.sourcePiece.code || "—"}
+          <span className="font-semibold text-slate-900">Sheet:</span> {sheetWidth} W × {sheetHeight} H mm
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Sheet:</span> {sheetWidth} W × {sheetHeight} H mm
+          <span className="font-semibold text-slate-900">Glass:</span> {source.sourcePiece.glass_type}
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Rack:</span> {source.sourcePiece.rack}
+          <span className="font-semibold text-slate-900">Thickness:</span> {source.sourcePiece.thickness} mm
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Glass:</span> {source.sourcePiece.glass_type}
+          <span className="font-semibold text-slate-900">Used area:</span> {Math.round(source.usedArea).toLocaleString()} mm²
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Thickness:</span> {source.sourcePiece.thickness} mm
+          <span className="font-semibold text-slate-900">Leftover area:</span> {Math.round(usefulLeftoverArea).toLocaleString()} mm²
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Used area:</span> {Math.round(source.usedArea).toLocaleString()} mm²
-        </div>
-        <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Leftover area:</span> {Math.round(usefulLeftoverArea).toLocaleString()} mm²
-        </div>
-        <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Waste area:</span> {Math.round(wasteArea).toLocaleString()} mm²
+          <span className="font-semibold text-slate-900">Waste area:</span> {Math.round(wasteArea).toLocaleString()} mm²
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-2 sm:p-3">
         <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="h-auto w-full">
           <defs>
-            <marker id="dim-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <marker id={`${markerPrefix}-dim-arrow`} viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
               <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f172a" />
             </marker>
-            <marker id="axis-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+            <marker id={`${markerPrefix}-axis-arrow`} viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto">
               <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8" />
             </marker>
           </defs>
 
-          <rect x={sheetX} y={sheetY} width={frameWidth} height={frameHeight} rx={10} fill="#f1f5f9" stroke="#475569" strokeWidth="1.7" />
+          <rect x={sheetX} y={sheetY} width={frameWidth} height={frameHeight} rx={10} fill="#f1f5f9" stroke="#475569" strokeWidth="1.6" />
 
           {source.leftoverRegions.map((region, index) => (
             <g key={`region-${index}`}>
@@ -107,7 +125,7 @@ export function CutLayoutPreview({ source }: Props) {
                 x={toX(region.x) + Math.max(6, scaledW(region.width) / 2)}
                 y={toY(region.y) + Math.max(12, scaledH(region.height) / 2)}
                 textAnchor={scaledW(region.width) > 70 ? "middle" : "start"}
-                className="fill-slate-700 text-[9px] font-medium"
+                className="fill-slate-700 text-[8px] font-medium"
               >
                 {region.label}
               </text>
@@ -131,7 +149,7 @@ export function CutLayoutPreview({ source }: Props) {
                 y={toY(cut.y) + scaledH(cut.height) / 2}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="fill-slate-800 text-[10px] font-semibold"
+                className="fill-slate-800 text-[9px] font-semibold"
               >
                 {cut.width}×{cut.height}
               </text>
@@ -152,90 +170,85 @@ export function CutLayoutPreview({ source }: Props) {
                   x2={step.orientation === "vertical" ? cutX : cutX + length}
                   y2={step.orientation === "vertical" ? cutY + length : cutY}
                   stroke="#1d4ed8"
-                  strokeWidth="2"
+                  strokeWidth="1.8"
                 />
-                <circle cx={markerX} cy={markerY} r="9" fill="#2563eb" stroke="#1e3a8a" strokeWidth="1" />
-                <text x={markerX} y={markerY} textAnchor="middle" dominantBaseline="middle" className="fill-white text-[9px] font-bold">
+                <circle cx={markerX} cy={markerY} r="8" fill="#2563eb" stroke="#1e3a8a" strokeWidth="1" />
+                <text x={markerX} y={markerY} textAnchor="middle" dominantBaseline="middle" className="fill-white text-[8px] font-bold">
                   {step.sequence}
                 </text>
               </g>
             );
           })}
 
-          <line x1={sheetX} y1={sheetY + frameHeight} x2={sheetX} y2={svgHeight - 24} stroke="#64748b" strokeDasharray="4 4" />
-          <line
-            x1={sheetX + frameWidth}
-            y1={sheetY + frameHeight}
-            x2={sheetX + frameWidth}
-            y2={svgHeight - 24}
-            stroke="#64748b"
-            strokeDasharray="4 4"
-          />
+          <line x1={sheetX} y1={sheetY + frameHeight} x2={sheetX} y2={svgHeight - 20} stroke="#64748b" strokeDasharray="4 4" />
+          <line x1={sheetX + frameWidth} y1={sheetY + frameHeight} x2={sheetX + frameWidth} y2={svgHeight - 20} stroke="#64748b" strokeDasharray="4 4" />
           <line
             x1={sheetX}
-            y1={svgHeight - 24}
+            y1={svgHeight - 20}
             x2={sheetX + frameWidth}
-            y2={svgHeight - 24}
+            y2={svgHeight - 20}
             stroke="#0f172a"
-            strokeWidth="1.3"
-            markerStart="url(#dim-arrow)"
-            markerEnd="url(#dim-arrow)"
+            strokeWidth="1.2"
+            markerStart={`url(#${markerPrefix}-dim-arrow)`}
+            markerEnd={`url(#${markerPrefix}-dim-arrow)`}
           />
-          <text x={sheetX + frameWidth / 2} y={svgHeight - 30} textAnchor="middle" className="fill-slate-900 text-[10px] font-semibold">
-            Width: {sheetWidth} mm
+          <text x={sheetX + frameWidth / 2} y={svgHeight - 25} textAnchor="middle" className="fill-slate-900 text-[9px] font-semibold">
+            W: {sheetWidth} mm
           </text>
 
-          <line x1={24} y1={sheetY} x2={sheetX} y2={sheetY} stroke="#64748b" strokeDasharray="4 4" />
-          <line x1={24} y1={sheetY + frameHeight} x2={sheetX} y2={sheetY + frameHeight} stroke="#64748b" strokeDasharray="4 4" />
+          <line x1={20} y1={sheetY} x2={sheetX} y2={sheetY} stroke="#64748b" strokeDasharray="4 4" />
+          <line x1={20} y1={sheetY + frameHeight} x2={sheetX} y2={sheetY + frameHeight} stroke="#64748b" strokeDasharray="4 4" />
           <line
-            x1={24}
+            x1={20}
             y1={sheetY}
-            x2={24}
+            x2={20}
             y2={sheetY + frameHeight}
             stroke="#0f172a"
-            strokeWidth="1.3"
-            markerStart="url(#dim-arrow)"
-            markerEnd="url(#dim-arrow)"
+            strokeWidth="1.2"
+            markerStart={`url(#${markerPrefix}-dim-arrow)`}
+            markerEnd={`url(#${markerPrefix}-dim-arrow)`}
           />
           <text
-            x={19}
+            x={15}
             y={sheetY + frameHeight / 2}
             textAnchor="middle"
-            transform={`rotate(-90 19 ${sheetY + frameHeight / 2})`}
-            className="fill-slate-900 text-[10px] font-semibold"
+            transform={`rotate(-90 15 ${sheetY + frameHeight / 2})`}
+            className="fill-slate-900 text-[9px] font-semibold"
           >
-            Height: {sheetHeight} mm
+            H: {sheetHeight} mm
           </text>
 
-          <circle cx={sheetX - 8} cy={sheetY - 8} r="3.5" fill="#1d4ed8" />
-          <line x1={sheetX - 8} y1={sheetY - 8} x2={sheetX + 18} y2={sheetY - 8} stroke="#1d4ed8" strokeWidth="1.4" markerEnd="url(#axis-arrow)" />
-          <line x1={sheetX - 8} y1={sheetY - 8} x2={sheetX - 8} y2={sheetY + 18} stroke="#1d4ed8" strokeWidth="1.4" markerEnd="url(#axis-arrow)" />
-          <text x={sheetX + 22} y={sheetY - 10} className="fill-blue-700 text-[9px] font-semibold">
+          <circle cx={sheetX - 7} cy={sheetY - 7} r="3" fill="#1d4ed8" />
+          <line x1={sheetX - 7} y1={sheetY - 7} x2={sheetX + 16} y2={sheetY - 7} stroke="#1d4ed8" strokeWidth="1.3" markerEnd={`url(#${markerPrefix}-axis-arrow)`} />
+          <line x1={sheetX - 7} y1={sheetY - 7} x2={sheetX - 7} y2={sheetY + 16} stroke="#1d4ed8" strokeWidth="1.3" markerEnd={`url(#${markerPrefix}-axis-arrow)`} />
+          <text x={sheetX + 18} y={sheetY - 9} className="fill-blue-700 text-[8px] font-semibold">
             x
           </text>
-          <text x={sheetX - 16} y={sheetY + 22} className="fill-blue-700 text-[9px] font-semibold">
+          <text x={sheetX - 14} y={sheetY + 18} className="fill-blue-700 text-[8px] font-semibold">
             y
           </text>
         </svg>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <div className="mb-2 text-xs font-semibold text-slate-800">Cut sequence</div>
-        {source.cutSteps.length === 0 ? (
-          <div className="text-xs text-muted-foreground">No cuts required (single piece match).</div>
-        ) : (
-          <ul className="space-y-1 text-xs text-slate-700">
-            {source.cutSteps.map((step) => (
-              <li key={`step-${step.id}`} className="flex items-start justify-between gap-2 rounded bg-white px-2 py-1">
-                <span className="font-medium">#{step.sequence}</span>
-                <span className="capitalize">{step.orientation}</span>
-                <span>{Math.round(step.position)}mm</span>
-                <span className="flex-1 text-right text-muted-foreground">{step.description}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {showCutSequence && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+          <div className="mb-1.5 text-xs font-semibold text-slate-800">Cut sequence</div>
+          {shownCutSteps.length === 0 ? (
+            <div className="text-xs text-muted-foreground">No cuts required (single piece match).</div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {shownCutSteps.map((step) => (
+                <div key={`step-${step.id}`} className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
+                  #{step.sequence} · {step.orientation} @ {Math.round(step.position)}mm
+                </div>
+              ))}
+              {remainingSteps > 0 && (
+                <div className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">+{remainingSteps} more</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="text-xs text-muted-foreground">
         Source rack: {source.sourcePiece.rack} · Estimated useful leftover: {Math.round(usefulLeftoverArea).toLocaleString()} mm²

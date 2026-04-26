@@ -207,14 +207,7 @@ export default function Index() {
     }
 
     if (activeView === "cutPlanner") {
-      return (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-            Cut planning is currently managed from the New Order workflow.
-          </div>
-          <NewOrderPanel pieces={pieces} onChange={load} />
-        </div>
-      );
+      return <NewOrderPanel pieces={pieces} onChange={load} />;
     }
 
     if (activeView === "leftovers") {
