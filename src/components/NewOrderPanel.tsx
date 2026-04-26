@@ -61,6 +61,21 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
 
   const plans = useMemo(() => generateCutPlans(validItems(items), pieces), [items, pieces]);
   const bestPlan = plans[0] ?? null;
+  const bestPlanTotals = useMemo(() => {
+    if (!bestPlan) return null;
+    return bestPlan.sources.reduce(
+      (acc, source) => {
+        const usefulLeftoverArea = source.leftoverRegions
+          .filter((region) => region.kind === "leftover")
+          .reduce((sum, region) => sum + region.width * region.height, 0);
+        return {
+          usedArea: acc.usedArea + source.usedArea,
+          usefulLeftoverArea: acc.usefulLeftoverArea + usefulLeftoverArea,
+        };
+      },
+      { usedArea: 0, usefulLeftoverArea: 0 }
+    );
+  }, [bestPlan]);
 
   const set = (key: keyof typeof initialForm, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -245,8 +260,8 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-5 p-6">
+      <div className="space-y-5 p-6">
+        <div className="space-y-5 rounded-2xl border border-border bg-white p-4 md:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Customer name">
               <Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} className="h-11" />
@@ -275,8 +290,46 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           <Field label="Order notes">
             <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} className="min-h-24" />
           </Field>
+        </div>
 
-          <div className="flex flex-wrap gap-3">
+        <div className="rounded-2xl border border-border bg-slate-50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Scissors className="h-5 w-5 text-blue-700" />
+            <h3 className="font-bold">Planner summary</h3>
+          </div>
+
+          {!bestPlan && <div className="rounded-xl border border-dashed bg-white p-4 text-sm text-muted-foreground">Add valid order items to generate a plan.</div>}
+
+          {bestPlan && (
+            <div className="rounded-xl border bg-white p-3 text-sm">
+              <div className="font-semibold text-slate-900">
+                Best plan: {bestPlan.usedSourceCount} source sheet{bestPlan.usedSourceCount === 1 ? "" : "s"} · Waste {Math.round(bestPlan.totalWaste).toLocaleString()} mm² ·{" "}
+                {bestPlan.unplacedItems.length} cut{bestPlan.unplacedItems.length === 1 ? "" : "s"} unplaced
+              </div>
+              <div className="mt-2 grid gap-2 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-md bg-slate-50 px-2 py-1">
+                  <span className="font-semibold text-slate-900">Status:</span> {bestPlan.fulfilled ? "All requested cuts are placeable" : "Plan has unplaced cuts"}
+                </div>
+                <div className="rounded-md bg-slate-50 px-2 py-1">
+                  <span className="font-semibold text-slate-900">Sources:</span> {bestPlan.usedSourceCount}
+                </div>
+                <div className="rounded-md bg-slate-50 px-2 py-1">
+                  <span className="font-semibold text-slate-900">Used area:</span> {Math.round(bestPlanTotals?.usedArea ?? 0).toLocaleString()} mm²
+                </div>
+                <div className="rounded-md bg-slate-50 px-2 py-1">
+                  <span className="font-semibold text-slate-900">Useful leftover:</span> {Math.round(bestPlanTotals?.usefulLeftoverArea ?? 0).toLocaleString()} mm²
+                </div>
+                <div className="rounded-md bg-slate-50 px-2 py-1">
+                  <span className="font-semibold text-slate-900">Waste area:</span> {Math.round(bestPlan.totalWaste).toLocaleString()} mm²
+                </div>
+                <div className="rounded-md bg-slate-50 px-2 py-1">
+                  <span className="font-semibold text-slate-900">Unplaced items:</span> {bestPlan.unplacedItems.length}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-3">
             <Button onClick={createOrder} disabled={busy || !!createdOrder} className="h-11">
               <PackagePlus className="mr-2 h-4 w-4" />
               Create Order
@@ -289,33 +342,22 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           </div>
         </div>
 
-        <div className="border-t bg-slate-50 p-6 lg:border-l lg:border-t-0">
+        <div className="rounded-2xl border border-border bg-slate-50 p-4">
           <div className="mb-3 flex items-center gap-2">
             <Scissors className="h-5 w-5 text-blue-700" />
-            <h3 className="font-bold">Generate Cut Plan</h3>
+            <h3 className="font-bold">Recommended cut plan</h3>
           </div>
 
           {!bestPlan && <div className="rounded-xl border border-dashed bg-white p-4 text-sm text-muted-foreground">Add valid order items to generate a plan.</div>}
 
           {bestPlan && (
             <div className="space-y-3">
-              <div className="rounded-xl border bg-white p-3 text-sm">
-                <div className="font-semibold text-slate-900">Best plan score: {bestPlan.score.toFixed(1)}</div>
-                <div className="text-muted-foreground">
-                  {bestPlan.fulfilled ? "All requested cuts are placeable." : `${bestPlan.unplacedItems.length} cut(s) unplaced.`}
-                </div>
-                <div className="mt-1 text-muted-foreground">
-                  Sources: {bestPlan.usedSourceCount} · Waste: {Math.round(bestPlan.totalWaste).toLocaleString()} mm²
-                </div>
+              <div className="text-sm text-muted-foreground">
+                Showing {bestPlan.sources.length} source layout{bestPlan.sources.length === 1 ? "" : "s"} for the current recommended plan.
               </div>
-
-              {bestPlan.sources.slice(0, 3).map((source) => (
+              {bestPlan.sources.map((source) => (
                 <CutLayoutPreview key={source.sourcePiece.id} source={source} />
               ))}
-
-              {bestPlan.sources.length > 3 && (
-                <div className="text-center text-xs text-muted-foreground">+{bestPlan.sources.length - 3} more source layout(s) in plan</div>
-              )}
             </div>
           )}
         </div>
