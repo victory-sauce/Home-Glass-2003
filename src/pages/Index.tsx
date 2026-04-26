@@ -221,6 +221,17 @@ export default function Index() {
       return renderInventory(["LEFTOVERS"]);
     }
 
+    if (activeView === "quotations") {
+      return (
+        <div className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">
+          <p className="mb-3">Quotations module is available on its dedicated page.</p>
+          <Button variant="outline" onClick={() => navigate("/quotations")}>
+            Open Quotations
+          </Button>
+        </div>
+      );
+    }
+
     if (activeView === "auditLogs") {
       return (
         <div className="rounded-2xl border border-border bg-card p-8 text-muted-foreground">
@@ -306,18 +317,17 @@ export default function Index() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => navigate("/quotations")}>
-                  Quotations
-                </Button>
 
                 <Button variant="outline" onClick={load} disabled={loading}>
                   {loading ? "Refreshing..." : "Refresh inventory"}
                 </Button>
 
-                <Button onClick={() => setAddStockOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Stock
-                </Button>
+                {(activeView === "inventory" || activeView === "leftovers") && (
+                  <Button onClick={() => setAddStockOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Stock
+                  </Button>
+                )}
               </div>
             </div>
 
