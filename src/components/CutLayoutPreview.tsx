@@ -36,6 +36,12 @@ export function CutLayoutPreview({ source }: Props) {
   const usefulLeftoverArea = source.leftoverRegions
     .filter((region) => region.kind === "leftover")
     .reduce((sum, region) => sum + region.width * region.height, 0);
+  const wasteArea = source.leftoverRegions
+    .filter((region) => region.kind === "waste")
+    .reduce((sum, region) => sum + region.width * region.height, 0);
+  const largestLeftover = source.leftoverRegions
+    .filter((region) => region.kind === "leftover")
+    .sort((a, b) => b.width * b.height - a.width * a.height)[0];
 
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-white p-4">
@@ -61,8 +67,13 @@ export function CutLayoutPreview({ source }: Props) {
           <span className="font-medium text-slate-900">Thickness:</span> {source.sourcePiece.thickness} mm
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-medium text-slate-900">Used/Waste:</span> {Math.round(source.usedArea).toLocaleString()} /{" "}
-          {Math.round(source.wasteArea).toLocaleString()} mm²
+          <span className="font-medium text-slate-900">Used area:</span> {Math.round(source.usedArea).toLocaleString()} mm²
+        </div>
+        <div className="rounded-md bg-white px-2 py-1 shadow-sm">
+          <span className="font-medium text-slate-900">Leftover area:</span> {Math.round(usefulLeftoverArea).toLocaleString()} mm²
+        </div>
+        <div className="rounded-md bg-white px-2 py-1 shadow-sm">
+          <span className="font-medium text-slate-900">Waste area:</span> {Math.round(wasteArea).toLocaleString()} mm²
         </div>
       </div>
 
@@ -87,10 +98,10 @@ export function CutLayoutPreview({ source }: Props) {
                 width={scaledW(region.width)}
                 height={scaledH(region.height)}
                 rx={4}
-                fill={region.kind === "leftover" ? "#e2e8f0" : "#d1d5db"}
-                stroke={region.kind === "leftover" ? "#64748b" : "#6b7280"}
+                fill={region.kind === "leftover" ? "#ccfbf1" : "#d1d5db"}
+                stroke={region.kind === "leftover" ? "#0f766e" : "#6b7280"}
                 strokeWidth="1"
-                strokeDasharray={region.kind === "leftover" ? "6 4" : "4 3"}
+                strokeDasharray={region.kind === "leftover" ? "6 4" : "3 3"}
               />
               <text
                 x={toX(region.x) + Math.max(6, scaledW(region.width) / 2)}
@@ -227,7 +238,9 @@ export function CutLayoutPreview({ source }: Props) {
       </div>
 
       <div className="text-xs text-muted-foreground">
-        Source rack: {source.sourcePiece.rack} · Estimated useful leftover: {Math.round(usefulLeftoverArea).toLocaleString()} mm² · Strategy: {strategyLabel(source.layoutStrategy)}
+        Source rack: {source.sourcePiece.rack} · Estimated useful leftover: {Math.round(usefulLeftoverArea).toLocaleString()} mm²
+        {largestLeftover ? ` · Estimated leftover: ${Math.round(largestLeftover.width)} × ${Math.round(largestLeftover.height)} mm` : ""}
+        {" · "}Strategy: {strategyLabel(source.layoutStrategy)}
       </div>
     </div>
   );

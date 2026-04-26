@@ -61,6 +61,7 @@ export interface CutPlanSource {
   sourcePiece: GlassPiece;
   placedCuts: PlacedCut[];
   usedArea: number;
+  leftoverArea: number;
   wasteArea: number;
   layoutWidth: number;
   layoutHeight: number;
@@ -105,6 +106,7 @@ interface LayoutResult {
   placedCuts: PlacedCut[];
   unplacedItems: ExpandedCutItem[];
   usedArea: number;
+  leftoverArea: number;
   wasteArea: number;
   layoutWidth: number;
   layoutHeight: number;
@@ -115,6 +117,12 @@ interface LayoutResult {
   usefulLeftoverArea: number;
   complexity: number;
 }
+
+const LEFTOVER_THRESHOLDS = {
+  minWidth: 100,
+  minHeight: 100,
+  minArea: 20_000,
+} as const;
 
 function normalize(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase();
@@ -190,7 +198,12 @@ function candidatePriority(piece: GlassPiece, requestedArea: number) {
 }
 
 function classifyRegion(width: number, height: number): "leftover" | "waste" {
-  return width >= 120 && height >= 120 ? "leftover" : "waste";
+  const area = width * height;
+  return width >= LEFTOVER_THRESHOLDS.minWidth &&
+    height >= LEFTOVER_THRESHOLDS.minHeight &&
+    area >= LEFTOVER_THRESHOLDS.minArea
+    ? "leftover"
+    : "waste";
 }
 
 function describeRegion(region: Omit<LeftoverRegion, "label">) {
@@ -318,7 +331,6 @@ function buildHorizontalLayout(items: ExpandedCutItem[], sourceWidth: number, so
 
   const realRows = rows.filter((row) => row.cuts.length > 0);
   const usedArea = placedCuts.reduce((sum, cut) => sum + cut.width * cut.height, 0);
-  const sourceArea = sourceWidth * sourceHeight;
 
   const leftoverRegions: LeftoverRegion[] = [];
   const usedHeight = realRows.reduce((sum, row) => sum + row.height, 0);
@@ -390,22 +402,26 @@ function buildHorizontalLayout(items: ExpandedCutItem[], sourceWidth: number, so
   }
 
   const withLabels = leftoverRegions.map((region) => ({ ...region, label: describeRegion(region) }));
-  const usefulLeftoverArea = withLabels
+  const leftoverArea = withLabels
     .filter((region) => region.kind === "leftover")
+    .reduce((sum, region) => sum + region.width * region.height, 0);
+  const wasteArea = withLabels
+    .filter((region) => region.kind === "waste")
     .reduce((sum, region) => sum + region.width * region.height, 0);
 
   return {
     placedCuts,
     unplacedItems,
     usedArea,
-    wasteArea: Math.max(0, sourceArea - usedArea),
+    leftoverArea,
+    wasteArea: Math.max(0, wasteArea),
     layoutWidth: sourceWidth,
     layoutHeight: sourceHeight,
     cutSteps,
     leftoverRegions: withLabels,
     layoutStrategy: "horizontal_shelf",
     cutCount: cutSteps.length,
-    usefulLeftoverArea,
+    usefulLeftoverArea: leftoverArea,
     complexity: realRows.length,
   };
 }
@@ -478,7 +494,6 @@ function buildVerticalLayout(items: ExpandedCutItem[], sourceWidth: number, sour
 
   const realStrips = strips.filter((strip) => strip.cuts.length > 0);
   const usedArea = placedCuts.reduce((sum, cut) => sum + cut.width * cut.height, 0);
-  const sourceArea = sourceWidth * sourceHeight;
 
   const leftoverRegions: LeftoverRegion[] = [];
   const usedWidth = realStrips.reduce((sum, strip) => sum + strip.width, 0);
@@ -550,22 +565,26 @@ function buildVerticalLayout(items: ExpandedCutItem[], sourceWidth: number, sour
   }
 
   const withLabels = leftoverRegions.map((region) => ({ ...region, label: describeRegion(region) }));
-  const usefulLeftoverArea = withLabels
+  const leftoverArea = withLabels
     .filter((region) => region.kind === "leftover")
+    .reduce((sum, region) => sum + region.width * region.height, 0);
+  const wasteArea = withLabels
+    .filter((region) => region.kind === "waste")
     .reduce((sum, region) => sum + region.width * region.height, 0);
 
   return {
     placedCuts,
     unplacedItems,
     usedArea,
-    wasteArea: Math.max(0, sourceArea - usedArea),
+    leftoverArea,
+    wasteArea: Math.max(0, wasteArea),
     layoutWidth: sourceWidth,
     layoutHeight: sourceHeight,
     cutSteps,
     leftoverRegions: withLabels,
     layoutStrategy: "vertical_strip",
     cutCount: cutSteps.length,
-    usefulLeftoverArea,
+    usefulLeftoverArea: leftoverArea,
     complexity: realStrips.length,
   };
 }
@@ -679,6 +698,7 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
           sourcePiece: candidate,
           placedCuts: layout.placedCuts,
           usedArea: layout.usedArea,
+          leftoverArea: layout.leftoverArea,
           wasteArea: layout.wasteArea,
           layoutWidth: layout.layoutWidth,
           layoutHeight: layout.layoutHeight,
