@@ -247,36 +247,36 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
 
   return (
     <Card className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
-      <div className="border-b bg-gradient-to-r from-slate-50 to-blue-50 p-6">
+      <div className="border-b bg-gradient-to-r from-slate-50 to-blue-50 p-4 md:p-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500 text-white shadow-lg shadow-cyan-500/20">
-            <PackagePlus className="h-7 w-7" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500 text-white shadow-lg shadow-cyan-500/20">
+            <PackagePlus className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-foreground">New customer order</h2>
-            <p className="text-muted-foreground">Multi-piece order capture with first-pass cut planning.</p>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">New customer order</h2>
+            <p className="text-sm text-muted-foreground">Multi-piece order capture with first-pass cut planning.</p>
           </div>
           {createdOrder && <Badge className="ml-auto">Order #{createdOrder.id.slice(0, 8)}</Badge>}
         </div>
       </div>
 
-      <div className="space-y-5 p-6">
-        <div className="space-y-5 rounded-2xl border border-border bg-white p-4 md:p-5">
-          <div className="grid gap-4 md:grid-cols-2">
+      <div className="space-y-4 p-4 md:p-5">
+        <div className="space-y-4 rounded-2xl border border-border bg-white p-3 md:p-4">
+          <div className="grid gap-3 md:grid-cols-2">
             <Field label="Customer name">
-              <Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} className="h-11" />
+              <Input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} className="h-10" />
             </Field>
             <Field label="Phone / Contact">
-              <Input value={form.customer_phone} onChange={(e) => set("customer_phone", e.target.value)} className="h-11" />
+              <Input value={form.customer_phone} onChange={(e) => set("customer_phone", e.target.value)} className="h-10" />
             </Field>
           </div>
 
-          <div className="rounded-2xl border border-border bg-slate-50 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <ReceiptText className="h-5 w-5 text-blue-600" />
-              <div className="font-semibold">Receipt type</div>
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-slate-50 p-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <ReceiptText className="h-4 w-4 text-blue-600" />
+              <span>Receipt type</span>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2 md:w-auto">
               <ReceiptOption value="non_vat" selected={form.receipt_type === "non_vat"} title="Non-VAT receipt" onSelect={() => set("receipt_type", "non_vat")} />
               <ReceiptOption value="vat" selected={form.receipt_type === "vat"} title="VAT receipt" onSelect={() => set("receipt_type", "vat")} />
             </div>
@@ -288,7 +288,7 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
           </div>
 
           <Field label="Order notes">
-            <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} className="min-h-24" />
+            <Textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} className="min-h-20" />
           </Field>
         </div>
 
@@ -352,12 +352,27 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
 
           {bestPlan && (
             <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">
-                Showing {bestPlan.sources.length} source layout{bestPlan.sources.length === 1 ? "" : "s"} for the current recommended plan.
+              <div className="grid gap-2 rounded-xl border bg-white p-3 text-xs sm:grid-cols-2 xl:grid-cols-5">
+                <SummaryChip label="Sources" value={bestPlan.usedSourceCount} />
+                <SummaryChip label="Used area" value={`${Math.round(bestPlanTotals?.usedArea ?? 0).toLocaleString()} mm²`} />
+                <SummaryChip label="Useful leftover" value={`${Math.round(bestPlanTotals?.usefulLeftoverArea ?? 0).toLocaleString()} mm²`} />
+                <SummaryChip label="Waste area" value={`${Math.round(bestPlan.totalWaste).toLocaleString()} mm²`} />
+                <SummaryChip label="Unplaced cuts" value={bestPlan.unplacedItems.length} tone={bestPlan.unplacedItems.length > 0 ? "warn" : "default"} />
               </div>
-              {bestPlan.sources.map((source) => (
-                <CutLayoutPreview key={source.sourcePiece.id} source={source} />
-              ))}
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                {bestPlan.sources.map((source, index) => (
+                  <CutLayoutPreview
+                    key={source.sourcePiece.id}
+                    source={source}
+                    variant="compact"
+                    maxHeight={300}
+                    showHeader
+                    showCutSequence
+                    layoutNumber={index + 1}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -387,9 +402,26 @@ function ReceiptOption({
   onSelect: () => void;
 }) {
   return (
-    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${selected ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-200"}`}>
-      <input type="radio" name="receipt_type" value={value} checked={selected} onChange={onSelect} className="mt-1 h-4 w-4 accent-blue-600" />
-      <div className="font-semibold text-slate-950">{title}</div>
+    <label className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${selected ? "border-blue-400 bg-blue-50 text-blue-900 ring-2 ring-blue-100" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"}`}>
+      <input type="radio" name="receipt_type" value={value} checked={selected} onChange={onSelect} className="h-4 w-4 accent-blue-600" />
+      <div className="font-semibold">{title}</div>
     </label>
+  );
+}
+
+function SummaryChip({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: number | string;
+  tone?: "default" | "warn";
+}) {
+  return (
+    <div className={`rounded-lg px-2.5 py-2 ${tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-slate-50 text-slate-700"}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold">{value}</div>
+    </div>
   );
 }
