@@ -118,6 +118,12 @@ interface LayoutResult {
   complexity: number;
 }
 
+interface OrientationOption {
+  width: number;
+  height: number;
+  rotated: boolean;
+}
+
 const LEFTOVER_THRESHOLDS = {
   minWidth: 100,
   minHeight: 100,
@@ -211,21 +217,21 @@ function describeRegion(region: Omit<LeftoverRegion, "label">) {
   return `${kindLabel} ${Math.round(region.width)}×${Math.round(region.height)}`;
 }
 
-function chooseOrientationForRow(
+function getOrientationOptions(item: ExpandedCutItem): OrientationOption[] {
+  const options: OrientationOption[] = [{ width: item.width, height: item.height, rotated: false }];
+  if (item.allow_rotation && item.width !== item.height) {
+    options.push({ width: item.height, height: item.width, rotated: true });
+  }
+  return options;
+}
+
+function fittingRowOrientations(
   item: ExpandedCutItem,
   remainingWidth: number,
   availableHeight: number,
   currentRowHeight: number
 ) {
-  const options: { width: number; height: number; rotated: boolean }[] = [
-    { width: item.width, height: item.height, rotated: false },
-  ];
-
-  if (item.allow_rotation && item.width !== item.height) {
-    options.push({ width: item.height, height: item.width, rotated: true });
-  }
-
-  const fitting = options
+  return getOrientationOptions(item)
     .filter((opt) => opt.width <= remainingWidth && Math.max(currentRowHeight, opt.height) <= availableHeight)
     .sort((a, b) => {
       const aGrowth = Math.max(0, a.height - currentRowHeight);
@@ -233,25 +239,15 @@ function chooseOrientationForRow(
       if (aGrowth !== bGrowth) return aGrowth - bGrowth;
       return b.width - a.width;
     });
-
-  return fitting[0] ?? null;
 }
 
-function chooseOrientationForStrip(
+function fittingStripOrientations(
   item: ExpandedCutItem,
   remainingHeight: number,
   availableWidth: number,
   currentStripWidth: number
 ) {
-  const options: { width: number; height: number; rotated: boolean }[] = [
-    { width: item.width, height: item.height, rotated: false },
-  ];
-
-  if (item.allow_rotation && item.width !== item.height) {
-    options.push({ width: item.height, height: item.width, rotated: true });
-  }
-
-  const fitting = options
+  return getOrientationOptions(item)
     .filter((opt) => opt.height <= remainingHeight && Math.max(currentStripWidth, opt.width) <= availableWidth)
     .sort((a, b) => {
       const aGrowth = Math.max(0, a.width - currentStripWidth);
@@ -259,75 +255,97 @@ function chooseOrientationForStrip(
       if (aGrowth !== bGrowth) return aGrowth - bGrowth;
       return b.height - a.height;
     });
-
-  return fitting[0] ?? null;
 }
 
 function buildHorizontalLayout(items: ExpandedCutItem[], sourceWidth: number, sourceHeight: number): LayoutResult {
-  const rows: LayoutRow[] = [];
-  let currentRow: LayoutRow | null = null;
+  type HorizontalState = {
+    rows: LayoutRow[];
+    placedCuts: PlacedCut[];
+    unplacedItems: ExpandedCutItem[];
+  };
 
-  const placedCuts: PlacedCut[] = [];
-  const unplacedItems: ExpandedCutItem[] = [];
+  const stateScore = (state: HorizontalState) => {
+    const placedArea = state.placedCuts.reduce((sum, cut) => sum + cut.width * cut.height, 0);
+    return state.placedCuts.length * 200_000 + placedArea - state.unplacedItems.length * 600_000;
+  };
+
+  // Generic beam-search: this explicitly evaluates both orientations for each rotatable item.
+  let states: HorizontalState[] = [{ rows: [], placedCuts: [], unplacedItems: [] }];
+  const beamWidth = 12;
 
   for (const item of items) {
-    if (!currentRow) {
-      currentRow = {
-        y: rows.reduce((sum, row) => sum + row.height, 0),
-        height: 0,
-        usedWidth: 0,
-        cuts: [],
-      };
-      rows.push(currentRow);
-    }
+    const nextStates: HorizontalState[] = [];
 
-    const tryPlace = (row: LayoutRow) => {
-      const remainingWidth = sourceWidth - row.usedWidth;
-      const availableHeight = sourceHeight - row.y;
-      return chooseOrientationForRow(item, remainingWidth, availableHeight, row.height);
-    };
+    for (const state of states) {
+      const rows = state.rows.length ? state.rows : [{ y: 0, height: 0, usedWidth: 0, cuts: [] }];
+      const currentRow = rows[rows.length - 1];
+      const currentRowFits = fittingRowOrientations(
+        item,
+        sourceWidth - currentRow.usedWidth,
+        sourceHeight - currentRow.y,
+        currentRow.height
+      ).map((orientation) => ({ orientation, startNewRow: false }));
 
-    let orientation = tryPlace(currentRow);
-
-    if (!orientation) {
       const nextY = currentRow.y + currentRow.height;
-      if (nextY >= sourceHeight) {
-        unplacedItems.push(item);
+      const nextRowFits =
+        nextY < sourceHeight
+          ? fittingRowOrientations(item, sourceWidth, sourceHeight - nextY, 0).map((orientation) => ({
+              orientation,
+              startNewRow: state.rows.length > 0,
+            }))
+          : [];
+      const placementOptions = [...currentRowFits, ...nextRowFits];
+
+      if (!placementOptions.length) {
+        nextStates.push({
+          rows: rows.map((row) => ({ ...row, cuts: [...row.cuts] })),
+          placedCuts: [...state.placedCuts],
+          unplacedItems: [...state.unplacedItems, item],
+        });
         continue;
       }
 
-      currentRow = {
-        y: nextY,
-        height: 0,
-        usedWidth: 0,
-        cuts: [],
-      };
-      rows.push(currentRow);
-      orientation = tryPlace(currentRow);
+      for (const option of placementOptions) {
+        const clonedRows = rows.map((row) => ({ ...row, cuts: [...row.cuts] }));
+        if (!state.rows.length) {
+          // no-op, rows already seeded with row zero
+        } else if (option.startNewRow) {
+          clonedRows.push({ y: nextY, height: 0, usedWidth: 0, cuts: [] });
+        }
+        const targetRow = clonedRows[clonedRows.length - 1];
+        const placed: PlacedCut = {
+          orderItemId: item.orderItemId,
+          label: item.label,
+          x: targetRow.usedWidth,
+          y: targetRow.y,
+          width: option.orientation.width,
+          height: option.orientation.height,
+          rotated: option.orientation.rotated,
+          glass_type: item.glass_type,
+          thickness: item.thickness,
+        };
+        targetRow.cuts.push(placed);
+        targetRow.usedWidth += option.orientation.width;
+        targetRow.height = Math.max(targetRow.height, option.orientation.height);
+        nextStates.push({
+          rows: clonedRows,
+          placedCuts: [...state.placedCuts, placed],
+          unplacedItems: [...state.unplacedItems],
+        });
+      }
     }
 
-    if (!orientation) {
-      unplacedItems.push(item);
-      continue;
-    }
-
-    const placed: PlacedCut = {
-      orderItemId: item.orderItemId,
-      label: item.label,
-      x: currentRow.usedWidth,
-      y: currentRow.y,
-      width: orientation.width,
-      height: orientation.height,
-      rotated: orientation.rotated,
-      glass_type: item.glass_type,
-      thickness: item.thickness,
-    };
-
-    currentRow.cuts.push(placed);
-    currentRow.usedWidth += orientation.width;
-    currentRow.height = Math.max(currentRow.height, orientation.height);
-    placedCuts.push(placed);
+    states = nextStates.sort((a, b) => stateScore(b) - stateScore(a)).slice(0, beamWidth);
   }
+
+  const bestState = states.sort((a, b) => stateScore(b) - stateScore(a))[0] ?? {
+    rows: [],
+    placedCuts: [],
+    unplacedItems: [...items],
+  };
+  const rows = bestState.rows;
+  const placedCuts = bestState.placedCuts;
+  const unplacedItems = bestState.unplacedItems;
 
   const realRows = rows.filter((row) => row.cuts.length > 0);
   const usedArea = placedCuts.reduce((sum, cut) => sum + cut.width * cut.height, 0);
@@ -427,70 +445,93 @@ function buildHorizontalLayout(items: ExpandedCutItem[], sourceWidth: number, so
 }
 
 function buildVerticalLayout(items: ExpandedCutItem[], sourceWidth: number, sourceHeight: number): LayoutResult {
-  const strips: LayoutStrip[] = [];
-  let currentStrip: LayoutStrip | null = null;
+  type VerticalState = {
+    strips: LayoutStrip[];
+    placedCuts: PlacedCut[];
+    unplacedItems: ExpandedCutItem[];
+  };
 
-  const placedCuts: PlacedCut[] = [];
-  const unplacedItems: ExpandedCutItem[] = [];
+  const stateScore = (state: VerticalState) => {
+    const placedArea = state.placedCuts.reduce((sum, cut) => sum + cut.width * cut.height, 0);
+    return state.placedCuts.length * 200_000 + placedArea - state.unplacedItems.length * 600_000;
+  };
+
+  let states: VerticalState[] = [{ strips: [], placedCuts: [], unplacedItems: [] }];
+  const beamWidth = 12;
 
   for (const item of items) {
-    if (!currentStrip) {
-      currentStrip = {
-        x: strips.reduce((sum, strip) => sum + strip.width, 0),
-        width: 0,
-        usedHeight: 0,
-        cuts: [],
-      };
-      strips.push(currentStrip);
-    }
+    const nextStates: VerticalState[] = [];
 
-    const tryPlace = (strip: LayoutStrip) => {
-      const remainingHeight = sourceHeight - strip.usedHeight;
-      const availableWidth = sourceWidth - strip.x;
-      return chooseOrientationForStrip(item, remainingHeight, availableWidth, strip.width);
-    };
+    for (const state of states) {
+      const strips = state.strips.length ? state.strips : [{ x: 0, width: 0, usedHeight: 0, cuts: [] }];
+      const currentStrip = strips[strips.length - 1];
+      const currentStripFits = fittingStripOrientations(
+        item,
+        sourceHeight - currentStrip.usedHeight,
+        sourceWidth - currentStrip.x,
+        currentStrip.width
+      ).map((orientation) => ({ orientation, startNewStrip: false }));
 
-    let orientation = tryPlace(currentStrip);
-
-    if (!orientation) {
       const nextX = currentStrip.x + currentStrip.width;
-      if (nextX >= sourceWidth) {
-        unplacedItems.push(item);
+      const nextStripFits =
+        nextX < sourceWidth
+          ? fittingStripOrientations(item, sourceHeight, sourceWidth - nextX, 0).map((orientation) => ({
+              orientation,
+              startNewStrip: state.strips.length > 0,
+            }))
+          : [];
+      const placementOptions = [...currentStripFits, ...nextStripFits];
+
+      if (!placementOptions.length) {
+        nextStates.push({
+          strips: strips.map((strip) => ({ ...strip, cuts: [...strip.cuts] })),
+          placedCuts: [...state.placedCuts],
+          unplacedItems: [...state.unplacedItems, item],
+        });
         continue;
       }
 
-      currentStrip = {
-        x: nextX,
-        width: 0,
-        usedHeight: 0,
-        cuts: [],
-      };
-      strips.push(currentStrip);
-      orientation = tryPlace(currentStrip);
+      for (const option of placementOptions) {
+        const clonedStrips = strips.map((strip) => ({ ...strip, cuts: [...strip.cuts] }));
+        if (!state.strips.length) {
+          // no-op, strip zero already seeded
+        } else if (option.startNewStrip) {
+          clonedStrips.push({ x: nextX, width: 0, usedHeight: 0, cuts: [] });
+        }
+        const targetStrip = clonedStrips[clonedStrips.length - 1];
+        const placed: PlacedCut = {
+          orderItemId: item.orderItemId,
+          label: item.label,
+          x: targetStrip.x,
+          y: targetStrip.usedHeight,
+          width: option.orientation.width,
+          height: option.orientation.height,
+          rotated: option.orientation.rotated,
+          glass_type: item.glass_type,
+          thickness: item.thickness,
+        };
+        targetStrip.cuts.push(placed);
+        targetStrip.usedHeight += option.orientation.height;
+        targetStrip.width = Math.max(targetStrip.width, option.orientation.width);
+        nextStates.push({
+          strips: clonedStrips,
+          placedCuts: [...state.placedCuts, placed],
+          unplacedItems: [...state.unplacedItems],
+        });
+      }
     }
 
-    if (!orientation) {
-      unplacedItems.push(item);
-      continue;
-    }
-
-    const placed: PlacedCut = {
-      orderItemId: item.orderItemId,
-      label: item.label,
-      x: currentStrip.x,
-      y: currentStrip.usedHeight,
-      width: orientation.width,
-      height: orientation.height,
-      rotated: orientation.rotated,
-      glass_type: item.glass_type,
-      thickness: item.thickness,
-    };
-
-    currentStrip.cuts.push(placed);
-    currentStrip.usedHeight += orientation.height;
-    currentStrip.width = Math.max(currentStrip.width, orientation.width);
-    placedCuts.push(placed);
+    states = nextStates.sort((a, b) => stateScore(b) - stateScore(a)).slice(0, beamWidth);
   }
+
+  const bestState = states.sort((a, b) => stateScore(b) - stateScore(a))[0] ?? {
+    strips: [],
+    placedCuts: [],
+    unplacedItems: [...items],
+  };
+  const strips = bestState.strips;
+  const placedCuts = bestState.placedCuts;
+  const unplacedItems = bestState.unplacedItems;
 
   const realStrips = strips.filter((strip) => strip.cuts.length > 0);
   const usedArea = placedCuts.reduce((sum, cut) => sum + cut.width * cut.height, 0);
@@ -618,11 +659,11 @@ function pickBestLayout(items: ExpandedCutItem[], sourceWidth: number, sourceHei
 
 function scorePlan(plan: CutPlan) {
   const fulfilledScore = plan.fulfilled ? 1_000_000 : -plan.unplacedItems.length * 20_000;
-  const fulfilledSourcePriorityBonus = plan.fulfilled ? 400_000 - plan.usedSourceCount * 120_000 : 0;
+  const fulfilledSourcePriorityBonus = plan.fulfilled ? 900_000 - plan.usedSourceCount * 280_000 : 0;
   const leftoverBonus = plan.sources.reduce((sum, source) => {
     return sum + (normalize(source.sourcePiece.rack) === "leftovers" ? 12_000 : 0);
   }, 0);
-  const sourcePenalty = plan.usedSourceCount * 8_000;
+  const sourcePenalty = plan.usedSourceCount * 18_000;
   const wastePenalty = plan.totalWaste / 50;
   const cutPenalty = plan.sources.reduce((sum, source) => sum + source.cutCount, 0) * 80;
   const usefulLeftoverBonus = plan.sources
@@ -694,31 +735,49 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
         });
 
       let remaining = [...group.items];
+      const remainingCandidates = [...candidates];
 
-      for (const candidate of candidates) {
-        if (!remaining.length) break;
+      while (remaining.length && remainingCandidates.length) {
+        // Evaluate every compatible source for this iteration before consuming one.
+        const evaluated = remainingCandidates
+          .map((candidate) => {
+            const layout = pickBestLayout(remaining, toNumber(candidate.width), toNumber(candidate.height));
+            return { candidate, layout };
+          })
+          .filter((entry) => entry.layout.placedCuts.length > 0)
+          .sort((a, b) => {
+            const placedDiff = b.layout.placedCuts.length - a.layout.placedCuts.length;
+            if (placedDiff !== 0) return placedDiff;
+            if (a.layout.unplacedItems.length !== b.layout.unplacedItems.length) {
+              return a.layout.unplacedItems.length - b.layout.unplacedItems.length;
+            }
+            const layoutScoreDiff = layoutScore(b.layout) - layoutScore(a.layout);
+            if (layoutScoreDiff !== 0) return layoutScoreDiff;
+            return candidatePriority(a.candidate, groupArea).waste - candidatePriority(b.candidate, groupArea).waste;
+          });
 
-        const pieceWidth = toNumber(candidate.width);
-        const pieceHeight = toNumber(candidate.height);
-        const layout = pickBestLayout(remaining, pieceWidth, pieceHeight);
-
-        if (!layout.placedCuts.length) continue;
+        const bestCandidate = evaluated[0];
+        if (!bestCandidate) break;
 
         planSources.push({
-          sourcePiece: candidate,
-          placedCuts: layout.placedCuts,
-          usedArea: layout.usedArea,
-          leftoverArea: layout.leftoverArea,
-          wasteArea: layout.wasteArea,
-          layoutWidth: layout.layoutWidth,
-          layoutHeight: layout.layoutHeight,
-          cutSteps: layout.cutSteps,
-          leftoverRegions: layout.leftoverRegions,
-          layoutStrategy: layout.layoutStrategy,
-          cutCount: layout.cutCount,
+          sourcePiece: bestCandidate.candidate,
+          placedCuts: bestCandidate.layout.placedCuts,
+          usedArea: bestCandidate.layout.usedArea,
+          leftoverArea: bestCandidate.layout.leftoverArea,
+          wasteArea: bestCandidate.layout.wasteArea,
+          layoutWidth: bestCandidate.layout.layoutWidth,
+          layoutHeight: bestCandidate.layout.layoutHeight,
+          cutSteps: bestCandidate.layout.cutSteps,
+          leftoverRegions: bestCandidate.layout.leftoverRegions,
+          layoutStrategy: bestCandidate.layout.layoutStrategy,
+          cutCount: bestCandidate.layout.cutCount,
         });
 
-        remaining = layout.unplacedItems;
+        remaining = bestCandidate.layout.unplacedItems;
+        const usedIndex = remainingCandidates.findIndex((piece) => piece.id === bestCandidate.candidate.id);
+        if (usedIndex >= 0) {
+          remainingCandidates.splice(usedIndex, 1);
+        }
       }
 
       unplaced.push(...remaining);
