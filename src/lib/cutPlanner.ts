@@ -618,6 +618,7 @@ function pickBestLayout(items: ExpandedCutItem[], sourceWidth: number, sourceHei
 
 function scorePlan(plan: CutPlan) {
   const fulfilledScore = plan.fulfilled ? 1_000_000 : -plan.unplacedItems.length * 20_000;
+  const fulfilledSourcePriorityBonus = plan.fulfilled ? 400_000 - plan.usedSourceCount * 120_000 : 0;
   const leftoverBonus = plan.sources.reduce((sum, source) => {
     return sum + (normalize(source.sourcePiece.rack) === "leftovers" ? 12_000 : 0);
   }, 0);
@@ -632,7 +633,16 @@ function scorePlan(plan: CutPlan) {
     return sum + Math.max(0, 300 - source.cutSteps.length * 12);
   }, 0);
 
-  return fulfilledScore + leftoverBonus + usefulLeftoverBonus + simplicityBonus - sourcePenalty - wastePenalty - cutPenalty;
+  return (
+    fulfilledScore +
+    fulfilledSourcePriorityBonus +
+    leftoverBonus +
+    usefulLeftoverBonus +
+    simplicityBonus -
+    sourcePenalty -
+    wastePenalty -
+    cutPenalty
+  );
 }
 
 export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: GlassPiece[]): CutPlan[] {

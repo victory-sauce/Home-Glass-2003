@@ -86,4 +86,76 @@ describe("generateCutPlans", () => {
       ])
     );
   });
+
+  it("prefers a fulfilled one-source plan over a fulfilled multi-source alternative", () => {
+    const sources: GlassPiece[] = [
+      {
+        id: "single-sheet",
+        code: "single-sheet",
+        width: 1000,
+        height: 1000,
+        thickness: 8,
+        glass_type: "clear",
+        status: "available",
+        rack: "A",
+        rack_order: 1,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+      {
+        id: "split-a",
+        code: "split-a",
+        width: 600,
+        height: 1000,
+        thickness: 8,
+        glass_type: "clear",
+        status: "available",
+        rack: "A",
+        rack_order: 2,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+      {
+        id: "split-b",
+        code: "split-b",
+        width: 600,
+        height: 1000,
+        thickness: 8,
+        glass_type: "clear",
+        status: "available",
+        rack: "A",
+        rack_order: 3,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+    ];
+
+    const orderItems: CutPlanOrderItem[] = [
+      {
+        id: "left-panel",
+        width: 500,
+        height: 1000,
+        quantity: 1,
+        thickness: 8,
+        glass_type: "clear",
+        allow_rotation: false,
+      },
+      {
+        id: "right-panel",
+        width: 500,
+        height: 1000,
+        quantity: 1,
+        thickness: 8,
+        glass_type: "clear",
+        allow_rotation: false,
+      },
+    ];
+
+    const [bestPlan] = generateCutPlans(orderItems, sources);
+
+    expect(bestPlan.fulfilled).toBe(true);
+    expect(bestPlan.usedSourceCount).toBe(1);
+    expect(bestPlan.sources).toHaveLength(1);
+    expect(bestPlan.sources[0].sourcePiece.id).toBe("single-sheet");
+  });
 });
