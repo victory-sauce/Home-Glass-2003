@@ -55,6 +55,7 @@ export function CutLayoutPreview({
   const largestLeftover = source.leftoverRegions
     .filter((region) => region.kind === "leftover")
     .sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  const rotatedCuts = source.placedCuts.filter((cut) => cut.rotated).length;
 
   const shownCutSteps = variant === "compact" ? source.cutSteps.slice(0, 6) : source.cutSteps;
   const remainingSteps = Math.max(0, source.cutSteps.length - shownCutSteps.length);
@@ -151,7 +152,8 @@ export function CutLayoutPreview({
                 dominantBaseline="middle"
                 className="fill-slate-800 text-[9px] font-semibold"
               >
-                {cut.width}×{cut.height}
+                {cut.label}
+                {cut.rotated ? " rotated" : ""}
               </text>
             </g>
           ))}
@@ -254,6 +256,7 @@ export function CutLayoutPreview({
         Source rack: {source.sourcePiece.rack} · Estimated useful leftover: {Math.round(usefulLeftoverArea).toLocaleString()} mm²
         {largestLeftover ? ` · Estimated leftover: ${Math.round(largestLeftover.width)} × ${Math.round(largestLeftover.height)} mm` : ""}
         {" · "}Strategy: {strategyLabel(source.layoutStrategy)}
+        {rotatedCuts > 0 ? ` · Rotated fit: ${rotatedCuts} cut${rotatedCuts > 1 ? "s" : ""}` : ""}
       </div>
     </div>
   );
