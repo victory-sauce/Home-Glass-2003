@@ -203,6 +203,16 @@ function candidatePriority(piece: GlassPiece, requestedArea: number) {
   };
 }
 
+function sourceArea(piece: GlassPiece) {
+  return toNumber(piece.width) * toNumber(piece.height);
+}
+
+function isWasteComparable(a: number, b: number) {
+  const delta = Math.abs(a - b);
+  const baseline = Math.max(20_000, Math.min(a, b) * 0.12);
+  return delta <= baseline;
+}
+
 function classifyRegion(width: number, height: number): "leftover" | "waste" {
   const area = width * height;
   return width >= LEFTOVER_THRESHOLDS.minWidth &&
@@ -658,32 +668,107 @@ function pickBestLayout(items: ExpandedCutItem[], sourceWidth: number, sourceHei
 }
 
 function scorePlan(plan: CutPlan) {
-  const fulfilledScore = plan.fulfilled ? 1_000_000 : -plan.unplacedItems.length * 20_000;
-  const fulfilledSourcePriorityBonus = plan.fulfilled ? 900_000 - plan.usedSourceCount * 280_000 : 0;
-  const leftoverBonus = plan.sources.reduce((sum, source) => {
-    return sum + (normalize(source.sourcePiece.rack) === "leftovers" ? 12_000 : 0);
-  }, 0);
-  const sourcePenalty = plan.usedSourceCount * 18_000;
-  const wastePenalty = plan.totalWaste / 50;
-  const cutPenalty = plan.sources.reduce((sum, source) => sum + source.cutCount, 0) * 80;
-  const usefulLeftoverBonus = plan.sources
+  const totalSourceArea = plan.sources.reduce((sum, source) => sum + sourceArea(source.sourcePiece), 0);
+  const totalCutCount = plan.sources.reduce((sum, source) => sum + source.cutCount, 0);
+  const leftoverSourceCount = plan.sources.filter((source) => normalize(source.sourcePiece.rack) === "leftovers").length;
+  const usefulLeftoverArea = plan.sources
     .flatMap((source) => source.leftoverRegions)
     .filter((region) => region.kind === "leftover")
-    .reduce((sum, region) => sum + region.width * region.height, 0) / 400;
-  const simplicityBonus = plan.sources.reduce((sum, source) => {
-    return sum + Math.max(0, 300 - source.cutSteps.length * 12);
-  }, 0);
+    .reduce((sum, region) => sum + region.width * region.height, 0);
 
   return (
-    fulfilledScore +
-    fulfilledSourcePriorityBonus +
-    leftoverBonus +
-    usefulLeftoverBonus +
-    simplicityBonus -
-    sourcePenalty -
-    wastePenalty -
-    cutPenalty
+    // a) fewer unplaced items
+    -plan.unplacedItems.length * 100_000_000 +
+    // b) fewer source sheets
+    -plan.usedSourceCount * 10_000_000 +
+    // c) lower total waste area
+    -Math.round(plan.totalWaste) * 100 +
+    // d) leftovers preference only as gentle tie-breakers
+    leftoverSourceCount * 20_000 +
+    Math.round(usefulLeftoverArea / 10) +
+    // e) lower source area / smaller adequate sheets
+    -Math.round(totalSourceArea) +
+    // f) fewer cuts / cleaner layout
+    -totalCutCount * 100
   );
+}
+
+function compareCandidateLayouts(
+  a: { candidate: GlassPiece; layout: LayoutResult },
+  b: { candidate: GlassPiece; layout: LayoutResult }
+) {
+  // a) fewer unplaced items
+  if (a.layout.unplacedItems.length !== b.layout.unplacedItems.length) {
+    return a.layout.unplacedItems.length - b.layout.unplacedItems.length;
+  }
+
+  // c) lower waste
+  if (a.layout.wasteArea !== b.layout.wasteArea) {
+    return a.layout.wasteArea - b.layout.wasteArea;
+  }
+
+  // d) prefer leftovers only when waste is comparable
+  if (isWasteComparable(a.layout.wasteArea, b.layout.wasteArea)) {
+    const aLeftovers = normalize(a.candidate.rack) === "leftovers";
+    const bLeftovers = normalize(b.candidate.rack) === "leftovers";
+    if (aLeftovers !== bLeftovers) {
+      return aLeftovers ? -1 : 1;
+    }
+  }
+
+  // e) smaller adequate source
+  const aArea = sourceArea(a.candidate);
+  const bArea = sourceArea(b.candidate);
+  if (aArea !== bArea) return aArea - bArea;
+
+  // f) cleaner layouts
+  if (a.layout.cutCount !== b.layout.cutCount) {
+    return a.layout.cutCount - b.layout.cutCount;
+  }
+
+  return (a.candidate.rack_order ?? 0) - (b.candidate.rack_order ?? 0);
+}
+
+function comparePlans(a: CutPlan, b: CutPlan) {
+  // a) fewer unplaced items
+  if (a.unplacedItems.length !== b.unplacedItems.length) {
+    return a.unplacedItems.length - b.unplacedItems.length;
+  }
+
+  // b) fewer source sheets
+  if (a.usedSourceCount !== b.usedSourceCount) {
+    return a.usedSourceCount - b.usedSourceCount;
+  }
+
+  // c) lower total waste area
+  if (a.totalWaste !== b.totalWaste) {
+    return a.totalWaste - b.totalWaste;
+  }
+
+  // d) leftovers only when waste/source counts are comparable
+  if (isWasteComparable(a.totalWaste, b.totalWaste) && a.usedSourceCount === b.usedSourceCount) {
+    const aLeftovers = a.sources.filter((source) => normalize(source.sourcePiece.rack) === "leftovers").length;
+    const bLeftovers = b.sources.filter((source) => normalize(source.sourcePiece.rack) === "leftovers").length;
+    if (aLeftovers !== bLeftovers) {
+      return bLeftovers - aLeftovers;
+    }
+  }
+
+  // e) smaller total source area
+  const aSourceArea = a.sources.reduce((sum, source) => sum + sourceArea(source.sourcePiece), 0);
+  const bSourceArea = b.sources.reduce((sum, source) => sum + sourceArea(source.sourcePiece), 0);
+  if (aSourceArea !== bSourceArea) {
+    return aSourceArea - bSourceArea;
+  }
+
+  // f) fewer cuts / cleaner layout
+  const aCutCount = a.sources.reduce((sum, source) => sum + source.cutCount, 0);
+  const bCutCount = b.sources.reduce((sum, source) => sum + source.cutCount, 0);
+  if (aCutCount !== bCutCount) {
+    return aCutCount - bCutCount;
+  }
+
+  return b.score - a.score;
 }
 
 export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: GlassPiece[]): CutPlan[] {
@@ -720,17 +805,8 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
         .sort((a, b) => {
           const pa = candidatePriority(a, groupArea);
           const pb = candidatePriority(b, groupArea);
-
-          if (pa.leftoverBoost !== pb.leftoverBoost) {
-            return pa.leftoverBoost - pb.leftoverBoost;
-          }
-
-          if (mode === "leftover-heavy" && pa.area !== pb.area) {
-            return pa.area - pb.area;
-          }
-
-          if (pa.waste !== pb.waste) return pa.waste - pb.waste;
           if (pa.area !== pb.area) return pa.area - pb.area;
+          if (pa.waste !== pb.waste) return pa.waste - pb.waste;
           return pa.rackOrder - pb.rackOrder;
         });
 
@@ -745,16 +821,7 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
             return { candidate, layout };
           })
           .filter((entry) => entry.layout.placedCuts.length > 0)
-          .sort((a, b) => {
-            const placedDiff = b.layout.placedCuts.length - a.layout.placedCuts.length;
-            if (placedDiff !== 0) return placedDiff;
-            if (a.layout.unplacedItems.length !== b.layout.unplacedItems.length) {
-              return a.layout.unplacedItems.length - b.layout.unplacedItems.length;
-            }
-            const layoutScoreDiff = layoutScore(b.layout) - layoutScore(a.layout);
-            if (layoutScoreDiff !== 0) return layoutScoreDiff;
-            return candidatePriority(a.candidate, groupArea).waste - candidatePriority(b.candidate, groupArea).waste;
-          });
+          .sort(compareCandidateLayouts);
 
         const bestCandidate = evaluated[0];
         if (!bestCandidate) break;
@@ -799,5 +866,5 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
     plans.push(plan);
   }
 
-  return plans.sort((a, b) => b.score - a.score);
+  return plans.sort(comparePlans);
 }

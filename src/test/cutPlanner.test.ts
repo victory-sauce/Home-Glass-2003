@@ -158,4 +158,65 @@ describe("generateCutPlans", () => {
     expect(bestPlan.sources).toHaveLength(1);
     expect(bestPlan.sources[0].sourcePiece.id).toBe("single-sheet");
   });
+
+  it("prefers the smaller adequate source sheet when both fulfill the same cuts", () => {
+    const sources: GlassPiece[] = [
+      {
+        id: "sheet-1500x1820",
+        code: "S-1500x1820",
+        width: 1500,
+        height: 1820,
+        thickness: 6,
+        glass_type: "Clear",
+        status: "available",
+        rack: "A",
+        rack_order: 1,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+      {
+        id: "sheet-2100x2440",
+        code: "S-2100x2440",
+        width: 2100,
+        height: 2440,
+        thickness: 6,
+        glass_type: "Clear",
+        status: "available",
+        rack: "A",
+        rack_order: 2,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+    ];
+
+    const orderItems: CutPlanOrderItem[] = [
+      {
+        id: "item-a",
+        width: 1250,
+        height: 1480,
+        quantity: 1,
+        thickness: 6,
+        glass_type: "Clear",
+        allow_rotation: true,
+      },
+      {
+        id: "item-b",
+        width: 480,
+        height: 1500,
+        quantity: 1,
+        thickness: 6,
+        glass_type: "Clear",
+        allow_rotation: true,
+      },
+    ];
+
+    const [bestPlan] = generateCutPlans(orderItems, sources);
+
+    expect(bestPlan.fulfilled).toBe(true);
+    expect(bestPlan.usedSourceCount).toBe(1);
+    expect(bestPlan.sources).toHaveLength(1);
+    expect(bestPlan.sources[0].sourcePiece.id).toBe("sheet-1500x1820");
+    expect(bestPlan.sources[0].sourcePiece.width).toBe(1500);
+    expect(bestPlan.sources[0].sourcePiece.height).toBe(1820);
+  });
 });
