@@ -46,15 +46,10 @@ export function CutLayoutPreview({
   const scaledH = (value: number) => Math.max(2, value * sheetScale);
   const pastelPalette = ["#dbeafe", "#cffafe", "#e0e7ff", "#ccfbf1", "#f5d0fe", "#c7d2fe"];
 
-  const usefulLeftoverArea = source.leftoverRegions
-    .filter((region) => region.kind === "leftover")
-    .reduce((sum, region) => sum + region.width * region.height, 0);
-  const wasteArea = source.leftoverRegions
-    .filter((region) => region.kind === "waste")
-    .reduce((sum, region) => sum + region.width * region.height, 0);
-  const largestLeftover = source.leftoverRegions
-    .filter((region) => region.kind === "leftover")
-    .sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  const usefulLeftoverArea = source.usefulLeftoverArea;
+  const wasteArea = source.wasteArea;
+  const offcutRegions = [...source.leftoverRegions, ...source.wasteRegions];
+  const largestLeftover = [...source.leftoverRegions].sort((a, b) => b.width * b.height - a.width * a.height)[0];
   const rotatedCuts = source.placedCuts.filter((cut) => cut.rotated).length;
 
   const shownCutSteps = variant === "compact" ? source.cutSteps.slice(0, 6) : source.cutSteps;
@@ -89,7 +84,7 @@ export function CutLayoutPreview({
           <span className="font-semibold text-slate-900">Used area:</span> {Math.round(source.usedArea).toLocaleString()} mm²
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
-          <span className="font-semibold text-slate-900">Leftover area:</span> {Math.round(usefulLeftoverArea).toLocaleString()} mm²
+          <span className="font-semibold text-slate-900">Useful leftover area:</span> {Math.round(usefulLeftoverArea).toLocaleString()} mm²
         </div>
         <div className="rounded-md bg-white px-2 py-1 shadow-sm">
           <span className="font-semibold text-slate-900">Waste area:</span> {Math.round(wasteArea).toLocaleString()} mm²
@@ -109,7 +104,7 @@ export function CutLayoutPreview({
 
           <rect x={sheetX} y={sheetY} width={frameWidth} height={frameHeight} rx={10} fill="#f1f5f9" stroke="#475569" strokeWidth="1.6" />
 
-          {source.leftoverRegions.map((region, index) => (
+          {offcutRegions.map((region, index) => (
             <g key={`region-${index}`}>
               <rect
                 x={toX(region.x)}
@@ -117,10 +112,10 @@ export function CutLayoutPreview({
                 width={scaledW(region.width)}
                 height={scaledH(region.height)}
                 rx={4}
-                fill={region.kind === "leftover" ? "#ccfbf1" : "#d1d5db"}
-                stroke={region.kind === "leftover" ? "#0f766e" : "#6b7280"}
+                fill={region.kind === "leftover" ? "#ccfbf1" : "#e5e7eb"}
+                stroke={region.kind === "leftover" ? "#0f766e" : "#9f1239"}
                 strokeWidth="1"
-                strokeDasharray={region.kind === "leftover" ? "6 4" : "3 3"}
+                strokeDasharray={region.kind === "leftover" ? "6 4" : "2 3"}
               />
               <text
                 x={toX(region.x) + Math.max(6, scaledW(region.width) / 2)}
