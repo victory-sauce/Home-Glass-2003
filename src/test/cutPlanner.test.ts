@@ -219,4 +219,59 @@ describe("generateCutPlans", () => {
     expect(bestPlan.sources[0].sourcePiece.width).toBe(1500);
     expect(bestPlan.sources[0].sourcePiece.height).toBe(1820);
   });
+
+  it("classifies a 100×100 offcut as waste instead of useful leftover", () => {
+    const sourceSheet: GlassPiece = {
+      id: "sheet-2440x1830",
+      code: "S-2440x1830",
+      width: 2440,
+      height: 1830,
+      thickness: 6,
+      glass_type: "clear",
+      status: "available",
+      rack: "A",
+      rack_order: 1,
+      parent_piece_id: null,
+      reserved_order_id: null,
+    };
+    const orderItems: CutPlanOrderItem[] = [
+      { id: "big", width: 1250, height: 1480, quantity: 1, thickness: 6, glass_type: "clear", allow_rotation: true },
+      { id: "small", width: 100, height: 100, quantity: 1, thickness: 6, glass_type: "clear", allow_rotation: true },
+    ];
+
+    const [bestPlan] = generateCutPlans(orderItems, [sourceSheet]);
+    expect(bestPlan.fulfilled).toBe(true);
+    const [usedSheet] = bestPlan.sources;
+    expect(usedSheet.wasteRegions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ width: 100, height: 100, kind: "waste" })])
+    );
+    expect(usedSheet.leftoverRegions).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ width: 100, height: 100, kind: "leftover" })])
+    );
+  });
+
+  it("keeps large offcuts above threshold as useful leftovers", () => {
+    const sourceSheet: GlassPiece = {
+      id: "sheet-2440x1830",
+      code: "S-2440x1830",
+      width: 2440,
+      height: 1830,
+      thickness: 6,
+      glass_type: "clear",
+      status: "available",
+      rack: "A",
+      rack_order: 1,
+      parent_piece_id: null,
+      reserved_order_id: null,
+    };
+    const orderItems: CutPlanOrderItem[] = [
+      { id: "big", width: 1250, height: 1480, quantity: 1, thickness: 6, glass_type: "clear", allow_rotation: true },
+    ];
+
+    const [bestPlan] = generateCutPlans(orderItems, [sourceSheet]);
+    const [usedSheet] = bestPlan.sources;
+    expect(usedSheet.leftoverRegions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ width: 1190, height: 1830, kind: "leftover" })])
+    );
+  });
 });
