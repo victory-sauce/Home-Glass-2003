@@ -274,4 +274,67 @@ describe("generateCutPlans", () => {
       expect.arrayContaining([expect.objectContaining({ width: 1190, height: 1830, kind: "leftover" })])
     );
   });
+
+  it("prefers a lower total-area split plan for four 700×1440 pieces", () => {
+    const sources: GlassPiece[] = [
+      {
+        id: "sheet-1500x2100",
+        code: "S-1500x2100",
+        width: 1500,
+        height: 2100,
+        thickness: 6,
+        glass_type: "clear",
+        status: "available",
+        rack: "A",
+        rack_order: 1,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+      {
+        id: "sheet-1500x1830",
+        code: "S-1500x1830",
+        width: 1500,
+        height: 1830,
+        thickness: 6,
+        glass_type: "clear",
+        status: "available",
+        rack: "A",
+        rack_order: 2,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+      {
+        id: "sheet-2440x1830",
+        code: "S-2440x1830",
+        width: 2440,
+        height: 1830,
+        thickness: 6,
+        glass_type: "clear",
+        status: "available",
+        rack: "A",
+        rack_order: 3,
+        parent_piece_id: null,
+        reserved_order_id: null,
+      },
+    ];
+    const orderItems: CutPlanOrderItem[] = [
+      { id: "panel", width: 700, height: 1440, quantity: 4, thickness: 6, glass_type: "clear", allow_rotation: true },
+    ];
+
+    const [bestPlan] = generateCutPlans(orderItems, sources);
+    expect(bestPlan.fulfilled).toBe(true);
+    expect(bestPlan.usedSourceCount).toBe(2);
+    expect(bestPlan.sources.map((source) => source.sourcePiece.id).sort()).toEqual(["sheet-1500x1830", "sheet-1500x2100"]);
+
+    const source2100 = bestPlan.sources.find((source) => source.sourcePiece.id === "sheet-1500x2100");
+    expect(source2100).toBeDefined();
+    expect(source2100?.placedCuts).toHaveLength(3);
+    expect(source2100?.placedCuts.every((cut) => cut.width === 1440 && cut.height === 700 && cut.rotated)).toBe(true);
+
+    const totalSourceArea = bestPlan.sources.reduce(
+      (sum, source) => sum + source.sourcePiece.width * source.sourcePiece.height,
+      0
+    );
+    expect(totalSourceArea).toBe(1500 * 2100 + 1500 * 1830);
+  });
 });
