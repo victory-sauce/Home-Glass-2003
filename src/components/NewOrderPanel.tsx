@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { PackagePlus, Lock, ReceiptText, Scissors } from "lucide-react";
 import { supabase, type GlassPiece, type Order } from "@/lib/supabase";
-import { generateCutPlans, type CutPlan } from "@/lib/cutPlanner";
+import { explainLeftoverReason, generateCutPlans, type CutPlan } from "@/lib/cutPlanner";
 import { OrderItemsEditor, type EditableOrderItem } from "@/components/OrderItemsEditor";
 import { CutLayoutPreview } from "@/components/CutLayoutPreview";
 import { Card } from "@/components/ui/card";
@@ -51,6 +51,9 @@ function validItems(items: EditableOrderItem[]) {
       Number(item.thickness) > 0 &&
       item.glass_type
   );
+}
+function mm2ToSqFt(value: number) {
+  return value / 92_903.04;
 }
 
 export function NewOrderPanel({ pieces, onChange }: Props) {
@@ -373,11 +376,80 @@ export function NewOrderPanel({ pieces, onChange }: Props) {
                   />
                 ))}
               </div>
+              <PlanAnalysisPanel plan={bestPlan} />
             </div>
           )}
         </div>
       </div>
     </Card>
+  );
+}
+
+function PlanAnalysisPanel({ plan }: { plan: CutPlan }) {
+  const b = plan.debug.scoreBreakdown;
+  const stockEfficiency = b.totalSourceArea > 0 ? (b.requiredArea / b.totalSourceArea) * 100 : 0;
+  return (
+    <details className="rounded-xl border bg-white p-3 text-xs" open={false}>
+      <summary className="cursor-pointer text-sm font-semibold text-slate-900">Why this plan? (Plan Analysis)</summary>
+      <div className="mt-3 space-y-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <SummaryChip label="Source sheets used" value={plan.sources.map((s) => s.sourcePiece.code).join(", ")} />
+          <SummaryChip label="Total source area" value={`${b.totalSourceAreaSqFt.toFixed(2)} sq ft`} />
+          <SummaryChip label="Required cut area" value={`${b.requiredAreaSqFt.toFixed(2)} sq ft`} />
+          <SummaryChip label="Total leftover area" value={`${mm2ToSqFt(b.unusedArea).toFixed(2)} sq ft`} />
+          <SummaryChip label="Reusable leftover area" value={`${mm2ToSqFt(b.reusableLeftoverArea).toFixed(2)} sq ft`} />
+          <SummaryChip label="Unusable waste area" value={`${mm2ToSqFt(b.unusableWasteArea).toFixed(2)} sq ft`} />
+          <SummaryChip label="Stock efficiency" value={`${stockEfficiency.toFixed(2)}%`} />
+          <SummaryChip label="Sheet count" value={b.sheetCount} />
+          <SummaryChip label="Final score" value={plan.score.toLocaleString()} />
+        </div>
+        <div className="rounded-lg bg-slate-50 p-2">
+          <div className="font-semibold">Score breakdown</div>
+          <div className="mt-1 grid gap-1 sm:grid-cols-2">
+            <div>Total source area score: {plan.debug.scoreBreakdownScores.totalSourceAreaScore.toLocaleString()}</div>
+            <div>Unusable waste score: {plan.debug.scoreBreakdownScores.unusableWasteScore.toLocaleString()}</div>
+            <div>Reusable leftover score: {plan.debug.scoreBreakdownScores.reusableLeftoverScore.toLocaleString()}</div>
+            <div>Skinny leftover penalty: {plan.debug.scoreBreakdownScores.skinnyLeftoverPenalty.toLocaleString()}</div>
+            <div>Stock size preference penalty: {plan.debug.scoreBreakdownScores.stockSizePreferencePenalty.toLocaleString()}</div>
+            <div>Sheet count penalty: {plan.debug.scoreBreakdownScores.sheetCountPenalty.toLocaleString()}</div>
+          </div>
+        </div>
+        <div className="rounded-lg bg-emerald-50 p-2">
+          <div className="font-semibold">Recommendation reason</div>
+          <div>{plan.debug.winnerReason}</div>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="rounded-lg border p-2">
+            <div className="font-semibold">Reusable leftovers</div>
+            {plan.debug.reusableLeftoverRectangles.map((r, idx) => (
+              <div key={`${r.x}-${r.y}-${idx}`}>{Math.round(r.width)}×{Math.round(r.height)} · {mm2ToSqFt(r.width * r.height).toFixed(2)} sq ft · {explainLeftoverReason(r)}</div>
+            ))}
+          </div>
+          <div className="rounded-lg border p-2">
+            <div className="font-semibold">Waste / unusable leftovers</div>
+            {plan.debug.unusableWasteRectangles.map((r, idx) => (
+              <div key={`${r.x}-${r.y}-${idx}`}>{Math.round(r.width)}×{Math.round(r.height)} · {mm2ToSqFt(r.width * r.height).toFixed(2)} sq ft · {explainLeftoverReason(r)}</div>
+            ))}
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50">
+              <tr>
+                {["Rank","Source sheets","Total source sq ft","Required cut sq ft","Leftover sq ft","Reusable leftover sq ft","Unusable waste sq ft","Sheet count","Final score","Result / rejection reason"].map((h) => <th key={h} className="px-2 py-1">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {plan.debug.comparedAlternatives.map((a) => (
+                <tr key={a.id} className="border-t">
+                  <td className="px-2 py-1">{a.rank}</td><td className="px-2 py-1">{a.sourceSheets.join(", ") || "—"}</td><td className="px-2 py-1">{a.totalSourceAreaSqFt.toFixed(2)}</td><td className="px-2 py-1">{a.requiredCutAreaSqFt.toFixed(2)}</td><td className="px-2 py-1">{a.leftoverAreaSqFt.toFixed(2)}</td><td className="px-2 py-1">{a.reusableLeftoverAreaSqFt.toFixed(2)}</td><td className="px-2 py-1">{a.unusableWasteAreaSqFt.toFixed(2)}</td><td className="px-2 py-1">{a.sheetCount}</td><td className="px-2 py-1">{a.finalScore.toLocaleString()}</td><td className="px-2 py-1">{a.resultReason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
   );
 }
 
