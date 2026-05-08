@@ -74,6 +74,27 @@ export interface CutPlanSource {
   cutCount: number;
 }
 
+export interface PlanScoreBreakdown {
+  totalSourceArea: number;
+  totalSourceAreaSqFt: number;
+  requiredArea: number;
+  requiredAreaSqFt: number;
+  unusedArea: number;
+  unusableWasteArea: number;
+  reusableLeftoverArea: number;
+  skinnyPenalty: number;
+  stockPreferencePenalty: number;
+  sheetCountPenalty: number;
+  sheetCount: number;
+}
+
+export interface CutPlanDebug {
+  scoreBreakdown: PlanScoreBreakdown;
+  reusableLeftoverRectangles: LeftoverRegion[];
+  unusableWasteRectangles: LeftoverRegion[];
+  winnerReason: string;
+}
+
 export interface CutPlan {
   id: string;
   fulfilled: boolean;
@@ -82,6 +103,7 @@ export interface CutPlan {
   usedSourceCount: number;
   unplacedItems: ExpandedCutItem[];
   score: number;
+  debug: CutPlanDebug;
 }
 
 interface MaterialGroup {
@@ -674,30 +696,60 @@ function pickBestLayout(items: ExpandedCutItem[], sourceWidth: number, sourceHei
   return scored[0];
 }
 
-function scorePlan(plan: CutPlan) {
-  const totalSourceArea = plan.sources.reduce((sum, source) => sum + sourceArea(source.sourcePiece), 0);
-  const totalCutCount = plan.sources.reduce((sum, source) => sum + source.cutCount, 0);
-  const leftoverSourceCount = plan.sources.filter((source) => normalize(source.sourcePiece.rack) === "leftovers").length;
-  const usefulLeftoverArea = plan.sources.reduce((sum, source) => sum + source.usefulLeftoverArea, 0);
-  const totalUnusedArea = plan.sources.reduce((sum, source) => sum + source.unusedArea, 0);
 
+function mm2ToSqFt(areaMm2: number) {
+  return areaMm2 / 92_903.04;
+}
+
+function skinnyPenaltyForRegion(region: LeftoverRegion) {
+  const shortSide = Math.min(region.width, region.height);
+  if (shortSide >= 250) return 0;
+  if (shortSide >= 150) return 1;
+  if (shortSide >= 100) return 3;
+  return 8;
+}
+
+function computePlanBreakdown(plan: CutPlan): PlanScoreBreakdown {
+  const totalSourceArea = plan.sources.reduce((sum, source) => sum + sourceArea(source.sourcePiece), 0);
+  const requiredArea = plan.sources.reduce((sum, source) => sum + source.usedArea, 0);
+  const unusedArea = plan.sources.reduce((sum, source) => sum + source.unusedArea, 0);
+  const unusableWasteArea = plan.sources.reduce((sum, source) => sum + source.wasteArea, 0);
+  const reusableLeftoverArea = plan.sources.reduce((sum, source) => sum + source.usefulLeftoverArea, 0);
+  const skinnyPenalty = plan.sources.reduce(
+    (sum, source) => sum + [...source.leftoverRegions, ...source.wasteRegions].reduce((n, region) => n + skinnyPenaltyForRegion(region), 0),
+    0
+  );
+  const stockPreferencePenalty = plan.sources.reduce((sum, source) => {
+    const width = toNumber(source.sourcePiece.width);
+    return sum + (width > 1500 ? (width - 1500) * 4_000 : 0);
+  }, 0);
+  const sheetCountPenalty = plan.usedSourceCount * 100;
+
+  return {
+    totalSourceArea,
+    totalSourceAreaSqFt: mm2ToSqFt(totalSourceArea),
+    requiredArea,
+    requiredAreaSqFt: mm2ToSqFt(requiredArea),
+    unusedArea,
+    unusableWasteArea,
+    reusableLeftoverArea,
+    skinnyPenalty,
+    stockPreferencePenalty,
+    sheetCountPenalty,
+    sheetCount: plan.usedSourceCount,
+  };
+}
+
+function scorePlan(plan: CutPlan) {
+  const breakdown = computePlanBreakdown(plan);
   return (
-    // a) fewer unplaced items
-    -plan.unplacedItems.length * 100_000_000 +
-    // b) fewer source sheets
-    -plan.usedSourceCount * 10_000_000 +
-    // c) lower source area / smaller adequate sheets
-    -Math.round(totalSourceArea) * 120 +
-    // d) lower total waste area
-    -Math.round(plan.totalWaste) * 50 +
-    // e) useful leftover only as secondary
-    Math.round(usefulLeftoverArea / 40) +
-    // f) avoid rewarding oversized unused regions
-    -Math.round(totalUnusedArea / 100) +
-    // g) fewer cuts / cleaner layout
-    -totalCutCount * 100 +
-    // h) leftovers preference only as gentle tie-breakers
-    leftoverSourceCount * 5_000
+    -plan.unplacedItems.length * 1_000_000_000 -
+    Math.round(breakdown.totalSourceArea) * 1_000 -
+    Math.round(breakdown.unusableWasteArea) * 400 -
+    breakdown.skinnyPenalty * 2_000_000 -
+    breakdown.stockPreferencePenalty -
+    Math.round(breakdown.reusableLeftoverArea) * 10 +
+    -breakdown.sheetCountPenalty
   );
 }
 
@@ -743,51 +795,15 @@ function compareCandidateLayouts(
 }
 
 function comparePlans(a: CutPlan, b: CutPlan) {
-  // a) fewer unplaced items
-  if (a.unplacedItems.length !== b.unplacedItems.length) {
-    return a.unplacedItems.length - b.unplacedItems.length;
-  }
-
-  // b) smaller total source area
-  const aSourceArea = a.sources.reduce((sum, source) => sum + sourceArea(source.sourcePiece), 0);
-  const bSourceArea = b.sources.reduce((sum, source) => sum + sourceArea(source.sourcePiece), 0);
-  if (aSourceArea !== bSourceArea) {
-    return aSourceArea - bSourceArea;
-  }
-
-  // c) lower total waste area
-  if (a.totalWaste !== b.totalWaste) {
-    return a.totalWaste - b.totalWaste;
-  }
-
-  // d) useful leftover area only secondary
-  const aUsefulLeftover = a.sources.reduce((sum, source) => sum + source.usefulLeftoverArea, 0);
-  const bUsefulLeftover = b.sources.reduce((sum, source) => sum + source.usefulLeftoverArea, 0);
-  if (aUsefulLeftover !== bUsefulLeftover) {
-    return bUsefulLeftover - aUsefulLeftover;
-  }
-
-  // e) fewer source sheets as tie-breaker only
-  if (a.usedSourceCount !== b.usedSourceCount) {
-    return a.usedSourceCount - b.usedSourceCount;
-  }
-
-  // h) leftovers only when waste/source counts are comparable
-  if (isWasteComparable(a.totalWaste, b.totalWaste) && a.usedSourceCount === b.usedSourceCount) {
-    const aLeftovers = a.sources.filter((source) => normalize(source.sourcePiece.rack) === "leftovers").length;
-    const bLeftovers = b.sources.filter((source) => normalize(source.sourcePiece.rack) === "leftovers").length;
-    if (aLeftovers !== bLeftovers) {
-      return bLeftovers - aLeftovers;
-    }
-  }
-
-  // g) fewer cuts / cleaner layout
-  const aCutCount = a.sources.reduce((sum, source) => sum + source.cutCount, 0);
-  const bCutCount = b.sources.reduce((sum, source) => sum + source.cutCount, 0);
-  if (aCutCount !== bCutCount) {
-    return aCutCount - bCutCount;
-  }
-
+  if (a.unplacedItems.length !== b.unplacedItems.length) return a.unplacedItems.length - b.unplacedItems.length;
+  const ab = computePlanBreakdown(a);
+  const bb = computePlanBreakdown(b);
+  if (ab.totalSourceArea !== bb.totalSourceArea) return ab.totalSourceArea - bb.totalSourceArea;
+  if (ab.unusableWasteArea !== bb.unusableWasteArea) return ab.unusableWasteArea - bb.unusableWasteArea;
+  if (ab.skinnyPenalty !== bb.skinnyPenalty) return ab.skinnyPenalty - bb.skinnyPenalty;
+  if (ab.stockPreferencePenalty !== bb.stockPreferencePenalty) return ab.stockPreferencePenalty - bb.stockPreferencePenalty;
+  if (ab.reusableLeftoverArea !== bb.reusableLeftoverArea) return bb.reusableLeftoverArea - ab.reusableLeftoverArea;
+  if (a.usedSourceCount !== b.usedSourceCount) return a.usedSourceCount - b.usedSourceCount;
   return b.score - a.score;
 }
 
@@ -804,6 +820,14 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
         usedSourceCount: 0,
         unplacedItems: [],
         score: 0,
+        debug: {
+          scoreBreakdown: {
+            totalSourceArea: 0,totalSourceAreaSqFt: 0,requiredArea: 0,requiredAreaSqFt: 0,unusedArea: 0,unusableWasteArea: 0,reusableLeftoverArea: 0,skinnyPenalty: 0,stockPreferencePenalty: 0,sheetCountPenalty: 0,sheetCount: 0,
+          },
+          reusableLeftoverRectangles: [],
+          unusableWasteRectangles: [],
+          winnerReason: "No items to cut.",
+        },
       },
     ];
   }
@@ -921,9 +945,24 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
       usedSourceCount: planSources.length,
       unplacedItems: unplaced,
       score: 0,
+      debug: {
+        scoreBreakdown: {
+          totalSourceArea: 0,totalSourceAreaSqFt: 0,requiredArea: 0,requiredAreaSqFt: 0,unusedArea: 0,unusableWasteArea: 0,reusableLeftoverArea: 0,skinnyPenalty: 0,stockPreferencePenalty: 0,sheetCountPenalty: 0,sheetCount: 0,
+        },
+        reusableLeftoverRectangles: [],
+        unusableWasteRectangles: [],
+        winnerReason: "",
+      },
     };
 
     plan.score = scorePlan(plan);
+    const breakdown = computePlanBreakdown(plan);
+    plan.debug = {
+      scoreBreakdown: breakdown,
+      reusableLeftoverRectangles: plan.sources.flatMap((source) => source.leftoverRegions),
+      unusableWasteRectangles: plan.sources.flatMap((source) => source.wasteRegions),
+      winnerReason: `Source area ${breakdown.totalSourceAreaSqFt.toFixed(2)} sq ft, waste ${mm2ToSqFt(breakdown.unusableWasteArea).toFixed(2)} sq ft, sheets ${breakdown.sheetCount}.`,
+    };
     plans.push(plan);
   }
 
