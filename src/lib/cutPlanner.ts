@@ -93,6 +93,28 @@ export interface CutPlanDebug {
   reusableLeftoverRectangles: LeftoverRegion[];
   unusableWasteRectangles: LeftoverRegion[];
   winnerReason: string;
+  comparedAlternatives: PlanAlternativeSummary[];
+  scoreBreakdownScores: {
+    totalSourceAreaScore: number;
+    unusableWasteScore: number;
+    reusableLeftoverScore: number;
+    skinnyLeftoverPenalty: number;
+    stockSizePreferencePenalty: number;
+    sheetCountPenalty: number;
+  };
+}
+export interface PlanAlternativeSummary {
+  id: string;
+  rank: number;
+  sourceSheets: string[];
+  totalSourceAreaSqFt: number;
+  requiredCutAreaSqFt: number;
+  leftoverAreaSqFt: number;
+  reusableLeftoverAreaSqFt: number;
+  unusableWasteAreaSqFt: number;
+  sheetCount: number;
+  finalScore: number;
+  resultReason: string;
 }
 
 export interface CutPlan {
@@ -252,6 +274,14 @@ export function classifyLeftoverRegion(width: number, height: number): "leftover
 function describeRegion(region: Omit<LeftoverRegion, "label">) {
   const kindLabel = region.kind === "leftover" ? "Leftover" : "Waste";
   return `${kindLabel} ${Math.round(region.width)}×${Math.round(region.height)}`;
+}
+export function explainLeftoverReason(region: LeftoverRegion) {
+  if (region.kind === "leftover") return "reusable clean rectangle";
+  const shortSide = Math.min(region.width, region.height);
+  const area = region.width * region.height;
+  if (shortSide < LEFTOVER_THRESHOLDS.minWidth || shortSide < LEFTOVER_THRESHOLDS.minHeight) return "too skinny";
+  if (area < LEFTOVER_THRESHOLDS.minArea) return "below minimum useful size";
+  return "unusable";
 }
 
 function getOrientationOptions(item: ExpandedCutItem): OrientationOption[] {
@@ -752,6 +782,16 @@ function scorePlan(plan: CutPlan) {
     -breakdown.sheetCountPenalty
   );
 }
+function scoreComponents(breakdown: PlanScoreBreakdown) {
+  return {
+    totalSourceAreaScore: Math.round(breakdown.totalSourceArea) * -1_000,
+    unusableWasteScore: Math.round(breakdown.unusableWasteArea) * -400,
+    reusableLeftoverScore: Math.round(breakdown.reusableLeftoverArea) * -10,
+    skinnyLeftoverPenalty: breakdown.skinnyPenalty * -2_000_000,
+    stockSizePreferencePenalty: -breakdown.stockPreferencePenalty,
+    sheetCountPenalty: -breakdown.sheetCountPenalty,
+  };
+}
 
 function compareCandidateLayouts(
   a: { candidate: GlassPiece; layout: LayoutResult },
@@ -827,6 +867,10 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
           reusableLeftoverRectangles: [],
           unusableWasteRectangles: [],
           winnerReason: "No items to cut.",
+          comparedAlternatives: [],
+          scoreBreakdownScores: {
+            totalSourceAreaScore: 0, unusableWasteScore: 0, reusableLeftoverScore: 0, skinnyLeftoverPenalty: 0, stockSizePreferencePenalty: 0, sheetCountPenalty: 0,
+          },
         },
       },
     ];
@@ -952,6 +996,10 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
         reusableLeftoverRectangles: [],
         unusableWasteRectangles: [],
         winnerReason: "",
+        comparedAlternatives: [],
+        scoreBreakdownScores: {
+          totalSourceAreaScore: 0, unusableWasteScore: 0, reusableLeftoverScore: 0, skinnyLeftoverPenalty: 0, stockSizePreferencePenalty: 0, sheetCountPenalty: 0,
+        },
       },
     };
 
@@ -962,9 +1010,39 @@ export function generateCutPlans(orderItems: CutPlanOrderItem[], glassPieces: Gl
       reusableLeftoverRectangles: plan.sources.flatMap((source) => source.leftoverRegions),
       unusableWasteRectangles: plan.sources.flatMap((source) => source.wasteRegions),
       winnerReason: `Source area ${breakdown.totalSourceAreaSqFt.toFixed(2)} sq ft, waste ${mm2ToSqFt(breakdown.unusableWasteArea).toFixed(2)} sq ft, sheets ${breakdown.sheetCount}.`,
+      comparedAlternatives: [],
+      scoreBreakdownScores: scoreComponents(breakdown),
     };
     plans.push(plan);
   }
-
-  return plans.sort(comparePlans);
+  const sorted = plans.sort(comparePlans);
+  const winner = sorted[0];
+  const compared = sorted.slice(0, 5).map((plan, index) => {
+    const breakdown = computePlanBreakdown(plan);
+    return {
+      id: plan.id,
+      rank: index + 1,
+      sourceSheets: plan.sources.map((source) => source.sourcePiece.code),
+      totalSourceAreaSqFt: breakdown.totalSourceAreaSqFt,
+      requiredCutAreaSqFt: breakdown.requiredAreaSqFt,
+      leftoverAreaSqFt: mm2ToSqFt(breakdown.unusedArea),
+      reusableLeftoverAreaSqFt: mm2ToSqFt(breakdown.reusableLeftoverArea),
+      unusableWasteAreaSqFt: mm2ToSqFt(breakdown.unusableWasteArea),
+      sheetCount: plan.usedSourceCount,
+      finalScore: plan.score,
+      resultReason: plan.unplacedItems.length ? `${plan.unplacedItems.length} cuts unplaced` : "viable candidate",
+    };
+  });
+  const runnerUp = sorted[1];
+  if (winner) {
+    const wb = computePlanBreakdown(winner);
+    const rb = runnerUp ? computePlanBreakdown(runnerUp) : null;
+    winner.debug.winnerReason = runnerUp
+      ? `Recommended because it uses ${wb.totalSourceAreaSqFt.toFixed(2)} sq ft, saving ${(rb!.totalSourceAreaSqFt - wb.totalSourceAreaSqFt).toFixed(2)} sq ft compared with the ${rb!.totalSourceAreaSqFt.toFixed(2)} sq ft alternative.`
+      : `Recommended because it uses ${wb.totalSourceAreaSqFt.toFixed(2)} sq ft with ${mm2ToSqFt(wb.unusableWasteArea).toFixed(2)} sq ft unusable waste.`;
+  }
+  sorted.forEach((plan) => {
+    plan.debug.comparedAlternatives = compared;
+  });
+  return sorted;
 }
