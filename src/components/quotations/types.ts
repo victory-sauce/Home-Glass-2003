@@ -1,6 +1,9 @@
+export type DrawingId = "generic-sliding-door" | "four-panel-sliding-door";
+
 export type QuoteItem = {
   id: string;
   itemCode: string;
+  drawingId?: DrawingId;
   productName: string;
   quantity: number;
   widthMm: number;

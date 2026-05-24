@@ -1,4 +1,4 @@
-import { SlidingDoorDrawing } from "@/components/drawings/SlidingDoorDrawing";
+import { DrawingRenderer } from "@/components/drawings/DrawingRenderer";
 import { cn } from "@/lib/utils";
 import type { Quotation } from "./types";
 
@@ -66,19 +66,20 @@ export function PrintableQuotation({
               <div className="text-sm">Quantity: {item.quantity} set(s)</div>
             </div>
 
-            <SlidingDoorDrawing
+            <DrawingRenderer
+              drawingId={item.drawingId}
               widthMm={item.widthMm}
               heightMm={item.heightMm}
               floorLevelMm={item.floorLevelMm}
               panelCount={item.panelCount}
               quantity={item.quantity}
-              showTopView={false}
               showLock={item.showLock}
               lockPosition={item.lockPosition}
               viewDirection={item.viewDirection}
               itemCode={item.itemCode}
               productName={item.productName}
               className="print-drawing"
+              printMode
             />
           </div>
 

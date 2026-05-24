@@ -1,12 +1,5 @@
 import {
-  ClipboardList,
-  History,
-  Layers,
   LayoutDashboard,
-  PackagePlus,
-  Recycle,
-  Scissors,
-  Settings,
   ReceiptText,
 } from "lucide-react";
 
@@ -31,15 +24,7 @@ const navItems: Array<{
   label: string;
   icon: typeof LayoutDashboard;
 }> = [
-  { value: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { value: "newOrder", label: "New Order", icon: PackagePlus },
-  { value: "openOrders", label: "Open Orders", icon: ClipboardList },
-  { value: "cutPlanner", label: "Cut Planner", icon: Scissors },
-  { value: "inventory", label: "Racks / Inventory", icon: Layers },
-  { value: "leftovers", label: "Offcuts / Leftovers", icon: Recycle },
   { value: "quotations", label: "Quotations", icon: ReceiptText },
-  { value: "auditLogs", label: "Audit Logs", icon: History },
-  { value: "settings", label: "Settings", icon: Settings },
 ];
 
 export function AppSidebar({ activeView, onChange }: AppSidebarProps) {

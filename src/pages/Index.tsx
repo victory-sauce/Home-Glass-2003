@@ -44,6 +44,15 @@ export default function Index() {
   const [activeView, setActiveView] = useState<ActiveView>("dashboard");
   const [addStockOpen, setAddStockOpen] = useState(false);
 
+  const handleSidebarChange = (view: ActiveView) => {
+    if (view === "quotations") {
+      navigate("/quotations");
+      return;
+    }
+
+    setActiveView(view);
+  };
+
   const load = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setLoading(false);
@@ -290,7 +299,7 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AppSidebar activeView={activeView} onChange={setActiveView} />
+      <AppSidebar activeView={activeView} onChange={handleSidebarChange} />
 
       <div className="md:pl-60">
         <header className="border-b border-border bg-card">

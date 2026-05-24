@@ -1,4 +1,4 @@
-import { SlidingDoorDrawing } from "@/components/drawings/SlidingDoorDrawing";
+import { DrawingRenderer } from "@/components/drawings/DrawingRenderer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { QuoteItem } from "./types";
@@ -20,7 +20,8 @@ export function QuoteItemCard({ item }: QuoteItemCardProps) {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <SlidingDoorDrawing
+        <DrawingRenderer
+          drawingId={item.drawingId}
           widthMm={item.widthMm}
           heightMm={item.heightMm}
           floorLevelMm={item.floorLevelMm}

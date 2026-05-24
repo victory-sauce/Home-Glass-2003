@@ -11,7 +11,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Index from "./pages/Index.tsx";
 import Quotations from "./pages/Quotations.tsx";
 import QuotationsPrint from "./pages/QuotationsPrint.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -36,7 +35,7 @@ function AppRoutes() {
           path="/"
           element={
             <ProtectedRoute>
-              <Index />
+              <Quotations />
             </ProtectedRoute>
           }
         />

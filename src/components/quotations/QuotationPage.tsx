@@ -1,5 +1,4 @@
 import { type ReactNode, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,10 +11,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FilePlus2, GlassWater, Printer, Save } from "lucide-react";
+import { BookOpen, FilePlus2, GlassWater, Printer, Save } from "lucide-react";
 import { QuoteItemCard } from "./QuoteItemCard";
+import { ProductCatalogDialog } from "./ProductCatalogDialog";
 import { SAMPLE_ITEM, SAMPLE_QUOTATION } from "./sampleData";
 import type { QuoteItem, Quotation } from "./types";
+import type { DrawingCatalogItem } from "@/components/drawings/catalog";
 
 const SIGN_OFF_EN =
   "The customer confirms that all product dimensions, opening direction, glass type, frame color, hardware, quantity, and installation location shown in this quotation are correct and approved for production.";
@@ -24,9 +25,9 @@ const SIGN_OFF_TH =
   "ลูกค้าได้ตรวจสอบและยืนยันขนาดสินค้า ทิศทางการเปิด-ปิด ประเภทกระจก สีกรอบ อุปกรณ์ จำนวนชุด และตำแหน่งติดตั้ง ตามแบบและใบเสนอราคานี้ถูกต้องแล้ว และอนุมัติให้ดำเนินการผลิตได้";
 
 export function QuotationPage() {
-  const navigate = useNavigate();
   const [quotations, setQuotations] = useState<Quotation[]>([SAMPLE_QUOTATION]);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string>(SAMPLE_QUOTATION.id);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [newItem, setNewItem] = useState<QuoteItem>({
     ...SAMPLE_ITEM,
     id: "draft-item",
@@ -85,6 +86,24 @@ export function QuotationPage() {
     });
   };
 
+  const addCatalogItemToQuotation = (catalogItem: DrawingCatalogItem) => {
+    if (!selectedQuotation) return;
+
+    const itemToAdd: QuoteItem = {
+      ...catalogItem.defaults,
+      id: `item-${Date.now()}`,
+    };
+
+    updateSelectedQuotation({
+      items: [...selectedQuotation.items, itemToAdd],
+    });
+    setNewItem({
+      ...catalogItem.defaults,
+      id: "draft-item",
+    });
+    setCatalogOpen(false);
+  };
+
   const printPreview = () => {
     window.open("/quotations/print", "_blank", "noopener,noreferrer");
   };
@@ -111,9 +130,6 @@ export function QuotationPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => navigate("/")}>
-                  Dashboard
-                </Button>
                 <Button variant="outline" onClick={printPreview}>
                   <Printer className="mr-2 h-4 w-4" />
                   Print / PDF preview
@@ -241,9 +257,20 @@ export function QuotationPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Add Quote Item</CardTitle>
+              <CardTitle className="flex flex-wrap items-center justify-between gap-3">
+                Add Quote Item
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCatalogOpen(true)}
+                  disabled={!selectedQuotation}
+                >
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Product Catalog
+                </Button>
+              </CardTitle>
               <CardDescription>
-                Add one door/window set item to this quotation.
+                Pick from the catalog or manually add one door/window set item.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
@@ -489,33 +516,15 @@ export function QuotationPage() {
               )}
             </CardContent>
           </Card>
-
-          <Card className="print:hidden">
-            <CardHeader>
-              <CardTitle>Supabase wiring (next step)</CardTitle>
-              <CardDescription>
-                UI-first implementation complete with hardcoded sample data.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-700">
-              <p>
-                Suggested SQL tables to create later: <code>quotations</code> and{" "}
-                <code>quote_items</code>.
-              </p>
-              <p>
-                Keep frontend on anon key only. Do not expose <code>service_role</code>{" "}
-                in client code.
-              </p>
-              <pre className="overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
-{`-- Example schema (run in Supabase SQL editor when ready)
--- create table quotations (...);
--- create table quote_items (... references quotations(id) on delete cascade);`}
-              </pre>
-            </CardContent>
-            </Card>
           </section>
         </main>
       </div>
+
+      <ProductCatalogDialog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
+        onAddItem={addCatalogItemToQuotation}
+      />
 
     </>
   );
