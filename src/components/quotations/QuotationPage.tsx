@@ -151,6 +151,7 @@ export function QuotationPage() {
       glassType: doorBuilder.glassType,
       hardware: doorBuilder.hardware.trim() || buildHardwareSummary(normalizedDoors),
       showLock: false,
+      showOutInMarker: true,
       lockPosition: doorBuilder.lockPosition,
       viewDirection: doorBuilder.viewDirection,
     };

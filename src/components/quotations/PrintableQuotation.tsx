@@ -77,6 +77,7 @@ export function PrintableQuotation({
               doors={item.doors}
               quantity={item.quantity}
               showLock={item.showLock}
+              showOutInMarker={item.showOutInMarker ?? true}
               lockPosition={item.lockPosition}
               viewDirection={item.viewDirection}
               itemCode={item.itemCode}
@@ -111,6 +112,10 @@ export function PrintableQuotation({
               <PrintableRow label="Glass" value={item.glassType} />
               <PrintableRow label="Hardware" value={item.hardware} />
               <PrintableRow label="View direction" value={item.viewDirection} />
+              <PrintableRow
+                label="Out / In marker"
+                value={(item.showOutInMarker ?? true) ? "Shown" : "Hidden"}
+              />
               <PrintableRow
                 label="Lock"
                 value={item.showLock ? `Yes (${item.lockPosition})` : "No"}

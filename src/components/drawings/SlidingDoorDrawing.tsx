@@ -8,6 +8,7 @@ type SlidingDoorDrawingProps = {
   quantity?: number;
   showTopView?: boolean;
   showLock?: boolean;
+  showOutInMarker?: boolean;
   lockPosition?: "left" | "right";
   viewDirection?: "inside" | "outside";
   itemCode?: string;
@@ -23,6 +24,7 @@ export function SlidingDoorDrawing({
   quantity = 1,
   showTopView = true,
   showLock = true,
+  showOutInMarker = true,
   lockPosition = "right",
   viewDirection = "inside",
   itemCode,
@@ -315,6 +317,7 @@ export function SlidingDoorDrawing({
         </g>
       )}
 
+      {showOutInMarker && (
       <g>
         <rect x={710} y={140} width={150} height={82} rx={8} fill="#e2e8f0" stroke="#94a3b8" />
         <text x={785} y={164} textAnchor="middle" fontSize={13} fontWeight={700} fill="#0f172a">
@@ -341,6 +344,7 @@ export function SlidingDoorDrawing({
           IN
         </text>
       </g>
+      )}
     </svg>
   );
 }

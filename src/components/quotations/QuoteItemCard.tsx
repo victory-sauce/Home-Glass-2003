@@ -83,6 +83,7 @@ export function QuoteItemCard({ item, onUpdateItem, onDeleteItem }: QuoteItemCar
           quantity={item.quantity}
           showTopView
           showLock={item.showLock}
+          showOutInMarker={item.showOutInMarker ?? true}
           lockPosition={item.lockPosition}
           viewDirection={item.viewDirection}
           itemCode={item.itemCode}
@@ -127,6 +128,15 @@ export function QuoteItemCard({ item, onUpdateItem, onDeleteItem }: QuoteItemCar
               <SpecRow label="Glass" value={item.glassType} />
               <SpecRow label="Hardware" value={item.hardware} />
               <SpecRow label="View" value={item.viewDirection} />
+              <ToggleSpecRow
+                label="Out / In marker"
+                checked={item.showOutInMarker ?? true}
+                onChange={(checked) =>
+                  onUpdateItem?.(item.id, {
+                    showOutInMarker: checked,
+                  })
+                }
+              />
               <SpecRow label="Lock" value={item.showLock ? "Enabled" : "No lock"} />
               {item.location && <SpecRow label="Install location" value={item.location} />}
               {item.notes && <SpecRow label="Notes" value={item.notes} />}
@@ -168,6 +178,35 @@ function EditableNumberSpecRow({
           />
           <span className="text-sm text-slate-600">{suffix}</span>
         </div>
+      </td>
+    </tr>
+  );
+}
+
+function ToggleSpecRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <tr className="border-b border-slate-200 last:border-b-0">
+      <th className="w-44 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-700">
+        {label}
+      </th>
+      <td className="px-3 py-2 text-slate-800">
+        <label className="inline-flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(event) => onChange(event.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-primary"
+          />
+          <span>{checked ? "Show marker" : "Hide marker"}</span>
+        </label>
       </td>
     </tr>
   );

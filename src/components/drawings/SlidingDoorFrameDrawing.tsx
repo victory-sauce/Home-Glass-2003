@@ -9,6 +9,7 @@ type SlidingDoorFrameDrawingProps = {
   widthMm: number;
   heightMm: number;
   trackCount?: TrackCount;
+  showOutInMarker?: boolean;
   className?: string;
 };
 
@@ -53,6 +54,7 @@ export function SlidingDoorFrameDrawing({
   widthMm,
   heightMm,
   trackCount = 2,
+  showOutInMarker = true,
   className,
 }: SlidingDoorFrameDrawingProps) {
   const {
@@ -80,6 +82,15 @@ export function SlidingDoorFrameDrawing({
         y={topViewY}
         width={frameWidth}
         trackCount={trackCount}
+        showOutInMarker={showOutInMarker}
+      />
+      <FrameDimensions
+        x={frameX}
+        y={frameY}
+        width={frameWidth}
+        height={frameHeight}
+        widthMm={widthMm}
+        heightMm={heightMm}
       />
 
       <SlidingDoorFrame
@@ -98,6 +109,7 @@ export function SlidingDoorFixedDoorDrawing({
   heightMm,
   panelCount = 1,
   trackCount = 1,
+  showOutInMarker = true,
   className,
 }: SlidingDoorFixedDoorDrawingProps) {
   const {
@@ -137,6 +149,15 @@ export function SlidingDoorFixedDoorDrawing({
         trackCount={trackCount}
         totalPanels={safePanelCount}
         fixedDoorIndexes={Array.from({ length: safePanelCount }).map((_, index) => index)}
+        showOutInMarker={showOutInMarker}
+      />
+      <FrameDimensions
+        x={frameX}
+        y={frameY}
+        width={frameWidth}
+        height={frameHeight}
+        widthMm={widthMm}
+        heightMm={heightMm}
       />
 
       <SlidingDoorFrame
@@ -164,6 +185,7 @@ export function SlidingDoorBehindTrackDrawing({
   widthMm,
   heightMm,
   trackCount = 2,
+  showOutInMarker = true,
   className,
 }: SlidingDoorBehindTrackDrawingProps) {
   const {
@@ -201,6 +223,15 @@ export function SlidingDoorBehindTrackDrawing({
         totalPanels={2}
         fixedDoorIndexes={[0]}
         behindDoorIndexes={[1]}
+        showOutInMarker={showOutInMarker}
+      />
+      <FrameDimensions
+        x={frameX}
+        y={frameY}
+        width={frameWidth}
+        height={frameHeight}
+        widthMm={widthMm}
+        heightMm={heightMm}
       />
 
       <SlidingDoorFrame
@@ -228,6 +259,7 @@ export function SlidingDoorBehindTrackReverseDrawing({
   widthMm,
   heightMm,
   trackCount = 2,
+  showOutInMarker = true,
   className,
 }: SlidingDoorBehindTrackDrawingProps) {
   const {
@@ -265,6 +297,15 @@ export function SlidingDoorBehindTrackReverseDrawing({
         totalPanels={2}
         fixedDoorIndexes={[1]}
         behindDoorIndexes={[0]}
+        showOutInMarker={showOutInMarker}
+      />
+      <FrameDimensions
+        x={frameX}
+        y={frameY}
+        width={frameWidth}
+        height={frameHeight}
+        widthMm={widthMm}
+        heightMm={heightMm}
       />
 
       <SlidingDoorFrame
@@ -297,6 +338,7 @@ export function SlidingDoorFourPanelAssemblyDrawing({
   widthMm,
   heightMm,
   trackCount = 2,
+  showOutInMarker = true,
   className,
 }: SlidingDoorBehindTrackDrawingProps) {
   const {
@@ -338,6 +380,15 @@ export function SlidingDoorFourPanelAssemblyDrawing({
         totalPanels={4}
         fixedDoorIndexes={[0, 3]}
         behindDoorIndexes={[1, 2]}
+        showOutInMarker={showOutInMarker}
+      />
+      <FrameDimensions
+        x={frameX}
+        y={frameY}
+        width={frameWidth}
+        height={frameHeight}
+        widthMm={widthMm}
+        heightMm={heightMm}
       />
 
       <SlidingDoorFrame
@@ -376,6 +427,7 @@ export function SlidingDoorCustomSystemDrawing({
   trackCount = 2,
   panelCount = 2,
   doors,
+  showOutInMarker = true,
   className,
 }: SlidingDoorCustomSystemDrawingProps) {
   const {
@@ -420,6 +472,15 @@ export function SlidingDoorCustomSystemDrawing({
           ...door,
           index,
         }))}
+        showOutInMarker={showOutInMarker}
+      />
+      <FrameDimensions
+        x={frameX}
+        y={frameY}
+        width={frameWidth}
+        height={frameHeight}
+        widthMm={widthMm}
+        heightMm={heightMm}
       />
 
       <SlidingDoorFrame
@@ -505,6 +566,7 @@ function SlidingDoorTopView({
   fixedDoorIndexes = [],
   behindDoorIndexes = [],
   doors,
+  showOutInMarker = true,
 }: {
   x: number;
   y: number;
@@ -514,6 +576,7 @@ function SlidingDoorTopView({
   fixedDoorIndexes?: number[];
   behindDoorIndexes?: number[];
   doors?: TopViewDoor[];
+  showOutInMarker?: boolean;
 }) {
   const frameWidth = 16;
   const safeTrackCount = getSafeTrackCount(trackCount);
@@ -540,7 +603,13 @@ function SlidingDoorTopView({
 
   return (
     <g fill="#fff" stroke="#111827" strokeLinecap="square" strokeLinejoin="miter">
-      <SlidingDoorTopViewFrame x={x} y={y} width={width} trackCount={trackCount} />
+      <SlidingDoorTopViewFrame
+        x={x}
+        y={y}
+        width={width}
+        trackCount={trackCount}
+        showOutInMarker={false}
+      />
       {topViewDoors.map((door) => (
         <TopViewTrackDoor
           key={`${door.id}-top-view`}
@@ -550,7 +619,17 @@ function SlidingDoorTopView({
           trackHeight={trackHeight}
         />
       ))}
-      <OutInLabel x={x + width + 54} y={y - 6} />
+      {topViewDoors
+        .filter((door) => door.motion === "fixed")
+        .map((door) => (
+          <TopViewFixedLabel
+            key={`${door.id}-top-view-fix-label`}
+            x={innerX + panelWidth * door.index + panelWidth / 2}
+            y={y - 10}
+            panelWidth={panelWidth}
+          />
+        ))}
+      {showOutInMarker && <OutInLabel x={x + width + 54} y={y - 6} />}
     </g>
   );
 }
@@ -560,11 +639,13 @@ function SlidingDoorTopViewFrame({
   y,
   width,
   trackCount = 2,
+  showOutInMarker = true,
 }: {
   x: number;
   y: number;
   width: number;
   trackCount?: TrackCount;
+  showOutInMarker?: boolean;
 }) {
   const frameWidth = 16;
   const frameHeight = getTopViewFrameHeight(getSafeTrackCount(trackCount));
@@ -583,6 +664,7 @@ function SlidingDoorTopViewFrame({
         y2={y + frameHeight}
         strokeWidth="1.5"
       />
+      {showOutInMarker && <OutInLabel x={x + width + 54} y={y - 6} />}
     </g>
   );
 }
@@ -654,7 +736,159 @@ function TopViewTrackDoor({
   );
 }
 
+function TopViewFixedLabel({
+  x,
+  y,
+  panelWidth,
+}: {
+  x: number;
+  y: number;
+  panelWidth: number;
+}) {
+  const fontSize = Math.max(12, Math.min(25, panelWidth * 0.16));
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#111827"
+      stroke="none"
+      fontFamily="Georgia, 'Times New Roman', serif"
+      fontSize={fontSize}
+      textAnchor="middle"
+    >
+      Fix
+    </text>
+  );
+}
+
+function FrameDimensions({
+  x,
+  y,
+  width,
+  height,
+  widthMm,
+  heightMm,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  widthMm: number;
+  heightMm: number;
+}) {
+  const dimensionStroke = "#111827";
+  const topLineY = y - 42;
+  const topExtensionY = topLineY - 12;
+  const verticalLineX = Math.max(34, x - 54);
+  const verticalLabelX = verticalLineX < 46 ? verticalLineX + 28 : verticalLineX - 16;
+  const widthLabel = `${Math.round(Math.max(widthMm, 1))}`;
+  const heightLabel = `${Math.round(Math.max(heightMm, 1))}`;
+
+  return (
+    <g fill="none" stroke={dimensionStroke} strokeLinecap="square" strokeLinejoin="miter">
+      <DimensionLine
+        x1={x}
+        y1={topLineY}
+        x2={x + width}
+        y2={topLineY}
+        label={widthLabel}
+        labelX={x + width / 2}
+        labelY={topLineY + 10}
+      />
+      <line x1={x} y1={topExtensionY} x2={x} y2={y - 8} strokeWidth="1.2" />
+      <line
+        x1={x + width}
+        y1={topExtensionY}
+        x2={x + width}
+        y2={y - 8}
+        strokeWidth="1.2"
+      />
+
+      <DimensionLine
+        x1={verticalLineX}
+        y1={y}
+        x2={verticalLineX}
+        y2={y + height}
+        label={heightLabel}
+        labelX={verticalLabelX}
+        labelY={y + height / 2 + 9}
+        vertical
+      />
+      <line x1={verticalLineX - 10} y1={y} x2={x - 8} y2={y} strokeWidth="1.2" />
+      <line
+        x1={verticalLineX - 10}
+        y1={y + height}
+        x2={x - 8}
+        y2={y + height}
+        strokeWidth="1.2"
+      />
+    </g>
+  );
+}
+
+function DimensionLine({
+  x1,
+  y1,
+  x2,
+  y2,
+  label,
+  labelX,
+  labelY,
+  vertical = false,
+}: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  label: string;
+  labelX: number;
+  labelY: number;
+  vertical?: boolean;
+}) {
+  const fontSize = 24;
+  const labelWidth = Math.max(54, label.length * 14);
+
+  return (
+    <g>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="1.2" />
+      {vertical ? (
+        <>
+          <path d={`M ${x1 - 8} ${y1 + 8} L ${x1} ${y1} L ${x1 + 8} ${y1 + 8}`} strokeWidth="1.2" />
+          <path d={`M ${x2 - 8} ${y2 - 8} L ${x2} ${y2} L ${x2 + 8} ${y2 - 8}`} strokeWidth="1.2" />
+        </>
+      ) : (
+        <>
+          <path d={`M ${x1 + 8} ${y1 - 8} L ${x1} ${y1} L ${x1 + 8} ${y1 + 8}`} strokeWidth="1.2" />
+          <path d={`M ${x2 - 8} ${y2 - 8} L ${x2} ${y2} L ${x2 - 8} ${y2 + 8}`} strokeWidth="1.2" />
+        </>
+      )}
+      <rect
+        x={labelX - labelWidth / 2}
+        y={labelY - fontSize + 3}
+        width={labelWidth}
+        height={fontSize + 8}
+        fill="#fff"
+        stroke="none"
+      />
+      <text
+        x={labelX}
+        y={labelY}
+        fill="#111827"
+        stroke="none"
+        fontFamily="Georgia, 'Times New Roman', serif"
+        fontSize={fontSize}
+        textAnchor="middle"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
 function OutInLabel({ x, y }: { x: number; y: number }) {
+  const fontSize = 21;
+
   return (
     <g stroke="#111827" fill="#111827">
       <text
@@ -662,18 +896,18 @@ function OutInLabel({ x, y }: { x: number; y: number }) {
         y={y}
         stroke="none"
         fontFamily="Georgia, 'Times New Roman', serif"
-        fontSize="28"
+        fontSize={fontSize}
         textAnchor="middle"
       >
         OUT
       </text>
-      <line x1={x - 34} y1={y + 10} x2={x + 34} y2={y + 10} strokeWidth="1.5" />
+      <line x1={x - 26} y1={y + 8} x2={x + 26} y2={y + 8} strokeWidth="1.3" />
       <text
         x={x}
-        y={y + 40}
+        y={y + 30}
         stroke="none"
         fontFamily="Georgia, 'Times New Roman', serif"
-        fontSize="28"
+        fontSize={fontSize}
         textAnchor="middle"
       >
         IN

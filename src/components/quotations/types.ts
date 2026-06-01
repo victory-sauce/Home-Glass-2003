@@ -37,6 +37,7 @@ export type QuoteItem = {
   glassType: string;
   hardware: string;
   showLock: boolean;
+  showOutInMarker?: boolean;
   lockPosition: "left" | "right";
   viewDirection: "inside" | "outside";
   location?: string;

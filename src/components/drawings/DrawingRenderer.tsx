@@ -21,7 +21,9 @@ type DrawingRendererProps = {
   trackCount?: TrackCount;
   doors?: DoorConfig[];
   quantity: number;
+  showTopView?: boolean;
   showLock: boolean;
+  showOutInMarker?: boolean;
   lockPosition: "left" | "right";
   viewDirection: "inside" | "outside";
   itemCode: string;
@@ -40,7 +42,9 @@ export function DrawingRenderer({
   trackCount = 2,
   doors,
   quantity,
+  showTopView,
   showLock,
+  showOutInMarker = true,
   lockPosition,
   viewDirection,
   itemCode,
@@ -69,6 +73,7 @@ export function DrawingRenderer({
         widthMm={widthMm}
         heightMm={heightMm}
         trackCount={trackCount}
+        showOutInMarker={showOutInMarker}
         className={className}
       />
     );
@@ -84,6 +89,7 @@ export function DrawingRenderer({
         heightMm={heightMm}
         panelCount={panelCount}
         trackCount={trackCount}
+        showOutInMarker={showOutInMarker}
         className={className}
       />
     );
@@ -95,6 +101,7 @@ export function DrawingRenderer({
         widthMm={widthMm}
         heightMm={heightMm}
         trackCount={trackCount}
+        showOutInMarker={showOutInMarker}
         className={className}
       />
     );
@@ -106,6 +113,7 @@ export function DrawingRenderer({
         widthMm={widthMm}
         heightMm={heightMm}
         trackCount={trackCount}
+        showOutInMarker={showOutInMarker}
         className={className}
       />
     );
@@ -117,6 +125,7 @@ export function DrawingRenderer({
         widthMm={widthMm}
         heightMm={heightMm}
         trackCount={trackCount}
+        showOutInMarker={showOutInMarker}
         className={className}
       />
     );
@@ -130,6 +139,7 @@ export function DrawingRenderer({
         panelCount={panelCount}
         trackCount={trackCount}
         doors={doors}
+        showOutInMarker={showOutInMarker}
         className={className}
       />
     );
@@ -158,8 +168,9 @@ export function DrawingRenderer({
       floorLevelMm={floorLevelMm}
       panelCount={panelCount}
       quantity={quantity}
-      showTopView={!printMode}
+      showTopView={showTopView ?? !printMode}
       showLock={showLock}
+      showOutInMarker={showOutInMarker}
       lockPosition={lockPosition}
       viewDirection={viewDirection}
       itemCode={itemCode}
