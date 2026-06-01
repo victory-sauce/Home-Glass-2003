@@ -1,21 +1,22 @@
 import type { QuoteItem, Quotation } from "./types";
 
 export const SAMPLE_ITEM: QuoteItem = {
-  id: "item-d61",
-  itemCode: "D6.2",
-  drawingId: "four-panel-sliding-door",
-  productName: "4-panel sliding glass door",
+  id: "item-behind-l-01",
+  itemCode: "BEHIND-L-01",
+  drawingId: "behind-track-left-slide-module",
+  productName: "Behind door slides left module",
   quantity: 1,
   widthMm: 3715,
   heightMm: 2795,
-  panelCount: 4,
+  panelCount: 2,
+  trackCount: 2,
   aluminumColor: "White",
   glassType: "Clear tempered glass",
-  hardware: "Lock with key",
-  showLock: true,
+  hardware: "Frame plus front and behind sliding leaves",
+  showLock: false,
   lockPosition: "right",
   viewDirection: "inside",
-  location: "Living room",
+  location: "",
 };
 
 export const SAMPLE_QUOTATION: Quotation = {
@@ -26,7 +27,7 @@ export const SAMPLE_QUOTATION: Quotation = {
   projectName: "Home renovation phase 1",
   location: "Bangkok",
   status: "draft",
-  notes: "Initial quotation preview with sliding door template.",
+  notes: "Build this quotation from the product catalog.",
   quoteDate: new Date().toISOString().slice(0, 10),
-  items: [SAMPLE_ITEM],
+  items: [],
 };

@@ -28,12 +28,13 @@ export function ProductCatalogDialog({
 
   const filteredCatalog = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
+    const sellableCatalog = drawingCatalog.filter((item) => !item.internal);
 
     if (!normalizedQuery) {
-      return drawingCatalog;
+      return sellableCatalog;
     }
 
-    return drawingCatalog.filter((item) =>
+    return sellableCatalog.filter((item) =>
       [
         item.itemCode,
         item.productName,
@@ -79,7 +80,12 @@ export function ProductCatalogDialog({
                   <h3 className="text-lg font-semibold text-slate-950">{item.productName}</h3>
                   <p className="mt-1 text-sm text-slate-600">{item.description}</p>
                 </div>
-                <Badge variant="outline">{item.defaults.panelCount} panels</Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">{item.defaults.panelCount} panels</Badge>
+                  <Badge variant="outline">
+                    {item.defaults.trackCount} track{item.defaults.trackCount > 1 ? "s" : ""}
+                  </Badge>
+                </div>
               </div>
 
               <div className="h-56 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
@@ -88,7 +94,9 @@ export function ProductCatalogDialog({
                   widthMm={item.defaults.widthMm}
                   heightMm={item.defaults.heightMm}
                   floorLevelMm={item.defaults.floorLevelMm}
+                  keyHeightMm={item.defaults.keyHeightMm}
                   panelCount={item.defaults.panelCount}
+                  trackCount={item.defaults.trackCount}
                   quantity={item.defaults.quantity}
                   showLock={item.defaults.showLock}
                   lockPosition={item.defaults.lockPosition}

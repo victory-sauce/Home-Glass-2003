@@ -71,7 +71,10 @@ export function PrintableQuotation({
               widthMm={item.widthMm}
               heightMm={item.heightMm}
               floorLevelMm={item.floorLevelMm}
+              keyHeightMm={item.keyHeightMm}
               panelCount={item.panelCount}
+              trackCount={item.trackCount}
+              doors={item.doors}
               quantity={item.quantity}
               showLock={item.showLock}
               lockPosition={item.lockPosition}
@@ -85,6 +88,7 @@ export function PrintableQuotation({
 
           <table className="quote-print-spec-table mt-2 w-full border-collapse text-sm">
             <tbody>
+              <PrintableRow label="Product name" value={item.productName} />
               <PrintableRow label="Width" value={`${item.widthMm} mm`} />
               <PrintableRow label="Height" value={`${item.heightMm} mm`} />
               <PrintableRow
@@ -95,7 +99,14 @@ export function PrintableQuotation({
                     : "-"
                 }
               />
+              {typeof item.keyHeightMm === "number" && (
+                <PrintableRow label="Key height" value={`${item.keyHeightMm} mm`} />
+              )}
               <PrintableRow label="Panels" value={`${item.panelCount}`} />
+              <PrintableRow
+                label="Tracks"
+                value={`${item.trackCount} track${item.trackCount > 1 ? "s" : ""}`}
+              />
               <PrintableRow label="Aluminum color" value={item.aluminumColor} />
               <PrintableRow label="Glass" value={item.glassType} />
               <PrintableRow label="Hardware" value={item.hardware} />

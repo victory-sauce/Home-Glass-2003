@@ -1,4 +1,24 @@
-export type DrawingId = "generic-sliding-door" | "four-panel-sliding-door";
+export type DrawingId =
+  | "sliding-door-frame"
+  | "fixed-door-module"
+  | "fixed-two-door-module"
+  | "behind-track-left-slide-module"
+  | "behind-track-right-slide-module"
+  | "four-panel-front-behind-module"
+  | "custom-door-system"
+  | "generic-sliding-door"
+  | "four-panel-sliding-door"
+  | "two-panel-sliding-door-with-post";
+
+export type TrackCount = 1 | 2 | 3 | 4;
+
+export type DoorMotion = "fixed" | "slidesLeft" | "slidesRight";
+
+export type DoorConfig = {
+  id: string;
+  track: TrackCount;
+  motion: DoorMotion;
+};
 
 export type QuoteItem = {
   id: string;
@@ -9,7 +29,10 @@ export type QuoteItem = {
   widthMm: number;
   heightMm: number;
   floorLevelMm?: number;
+  keyHeightMm?: number;
   panelCount: number;
+  trackCount: TrackCount;
+  doors?: DoorConfig[];
   aluminumColor: string;
   glassType: string;
   hardware: string;
