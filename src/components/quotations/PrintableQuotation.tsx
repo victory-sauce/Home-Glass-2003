@@ -55,7 +55,11 @@ export function PrintableQuotation({
         </div>
       </section>
 
-      {quotation.items.map((item) => (
+      {quotation.items.map((item) => {
+        const isFoldingItem =
+          item.itemKind === "folding" || item.drawingId === "custom-folding-door-system";
+
+        return (
         <article key={item.id} className="quote-print-item">
           <div className="quote-print-core">
             <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-300 pb-2">
@@ -75,6 +79,7 @@ export function PrintableQuotation({
               panelCount={item.panelCount}
               trackCount={item.trackCount}
               doors={item.doors}
+              folding={item.folding}
               quantity={item.quantity}
               showLock={item.showLock}
               showOutInMarker={item.showOutInMarker ?? true}
@@ -104,10 +109,23 @@ export function PrintableQuotation({
                 <PrintableRow label="Key height" value={`${item.keyHeightMm} mm`} />
               )}
               <PrintableRow label="Panels" value={`${item.panelCount}`} />
-              <PrintableRow
-                label="Tracks"
-                value={`${item.trackCount} track${item.trackCount > 1 ? "s" : ""}`}
-              />
+              {isFoldingItem && item.folding ? (
+                <>
+                  <PrintableRow
+                    label="Fold split"
+                    value={`${item.folding.leftPanels}L${item.folding.rightPanels}R`}
+                  />
+                  <PrintableRow
+                    label="Handles"
+                    value={formatHandleDoorNumbers(item.folding.handleDoorNumbers)}
+                  />
+                </>
+              ) : (
+                <PrintableRow
+                  label="Tracks"
+                  value={`${item.trackCount} track${item.trackCount > 1 ? "s" : ""}`}
+                />
+              )}
               <PrintableRow label="Aluminum color" value={item.aluminumColor} />
               <PrintableRow label="Glass" value={item.glassType} />
               <PrintableRow label="Hardware" value={item.hardware} />
@@ -125,7 +143,8 @@ export function PrintableQuotation({
             </tbody>
           </table>
         </article>
-      ))}
+        );
+      })}
 
       <footer className="quotation-signoff mt-4 border-t border-slate-400 pt-3 text-sm">
         <p>
@@ -169,4 +188,10 @@ function PrintableRow({ label, value }: { label: string; value: string }) {
       <td className="border border-slate-300 px-2 py-1">{value}</td>
     </tr>
   );
+}
+
+function formatHandleDoorNumbers(handleDoorNumbers: number[]) {
+  return handleDoorNumbers.length > 0
+    ? `Door ${handleDoorNumbers.join(", ")}`
+    : "No handles";
 }

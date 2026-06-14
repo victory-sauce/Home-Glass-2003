@@ -6,9 +6,12 @@ export type DrawingId =
   | "behind-track-right-slide-module"
   | "four-panel-front-behind-module"
   | "custom-door-system"
+  | "custom-folding-door-system"
   | "generic-sliding-door"
   | "four-panel-sliding-door"
   | "two-panel-sliding-door-with-post";
+
+export type QuoteItemKind = "sliding" | "folding";
 
 export type TrackCount = 1 | 2 | 3 | 4;
 
@@ -20,9 +23,17 @@ export type DoorConfig = {
   motion: DoorMotion;
 };
 
+export type FoldingDoorConfig = {
+  totalPanels: number;
+  leftPanels: number;
+  rightPanels: number;
+  handleDoorNumbers: number[];
+};
+
 export type QuoteItem = {
   id: string;
   itemCode: string;
+  itemKind?: QuoteItemKind;
   drawingId?: DrawingId;
   productName: string;
   quantity: number;
@@ -33,6 +44,7 @@ export type QuoteItem = {
   panelCount: number;
   trackCount: TrackCount;
   doors?: DoorConfig[];
+  folding?: FoldingDoorConfig;
   aluminumColor: string;
   glassType: string;
   hardware: string;

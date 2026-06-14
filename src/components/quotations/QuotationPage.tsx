@@ -23,6 +23,8 @@ import { SAMPLE_QUOTATION } from "./sampleData";
 import type {
   DoorConfig,
   DoorMotion,
+  FoldingDoorConfig,
+  QuoteItemKind,
   QuoteItem,
   Quotation,
   TrackCount,
@@ -43,8 +45,13 @@ const DOOR_MOTION_OPTIONS: Array<{ value: DoorMotion; label: string }> = [
 const COMPACT_INPUT_CLASS = "h-8 px-2 text-sm";
 const COMPACT_SELECT_CLASS =
   "h-8 w-full rounded-md border border-input bg-background px-2 text-sm";
+const DEFAULT_SLIDING_HARDWARE = "Custom track door system";
+const DEFAULT_FOLDING_HARDWARE = "Custom folding door system";
+const MAX_SLIDING_DOORS = 12;
+const MAX_FOLDING_DOORS = 32;
 
 type DoorBuilderState = {
+  itemKind: QuoteItemKind;
   quantity: number;
   widthMm: number;
   heightMm: number;
@@ -52,6 +59,9 @@ type DoorBuilderState = {
   trackCount: TrackCount;
   doorCount: number;
   doors: DoorConfig[];
+  foldingLeftCount: number;
+  foldingRightCount: number;
+  foldingHandleDoorNumbers: number[];
   aluminumColor: string;
   glassType: string;
   hardware: string;
@@ -60,6 +70,7 @@ type DoorBuilderState = {
 };
 
 const DEFAULT_DOOR_BUILDER: DoorBuilderState = {
+  itemKind: "sliding",
   quantity: 1,
   widthMm: 3715,
   heightMm: 2795,
@@ -70,9 +81,12 @@ const DEFAULT_DOOR_BUILDER: DoorBuilderState = {
     { id: "door-1", track: 1, motion: "fixed" },
     { id: "door-2", track: 2, motion: "slidesLeft" },
   ],
+  foldingLeftCount: 0,
+  foldingRightCount: 2,
+  foldingHandleDoorNumbers: [],
   aluminumColor: "White",
   glassType: "Clear tempered glass",
-  hardware: "Custom track door system",
+  hardware: DEFAULT_SLIDING_HARDWARE,
   lockPosition: "right",
   viewDirection: "inside",
 };
@@ -125,36 +139,73 @@ export function QuotationPage() {
     if (!selectedQuotation) return;
 
     const itemIndex = selectedQuotation.items.length + 1;
-    const normalizedDoors = normalizeBuilderDoors(
-      doorBuilder.doors,
-      doorBuilder.doorCount,
-      doorBuilder.trackCount
-    );
     const floorLevelMm =
       doorBuilder.floorLevelMm.trim() === ""
         ? undefined
         : Number(doorBuilder.floorLevelMm);
 
-    const itemToAdd: QuoteItem = {
-      id: `item-${Date.now()}`,
-      itemCode: `CUSTOM-${String(itemIndex).padStart(2, "0")}`,
-      drawingId: "custom-door-system",
-      productName: buildDoorSystemName(doorBuilder.doorCount, doorBuilder.trackCount),
-      quantity: Math.max(doorBuilder.quantity, 1),
-      widthMm: Math.max(doorBuilder.widthMm, 1),
-      heightMm: Math.max(doorBuilder.heightMm, 1),
-      floorLevelMm: Number.isFinite(floorLevelMm) ? floorLevelMm : undefined,
-      panelCount: doorBuilder.doorCount,
-      trackCount: doorBuilder.trackCount,
-      doors: normalizedDoors,
-      aluminumColor: doorBuilder.aluminumColor,
-      glassType: doorBuilder.glassType,
-      hardware: doorBuilder.hardware.trim() || buildHardwareSummary(normalizedDoors),
-      showLock: false,
-      showOutInMarker: true,
-      lockPosition: doorBuilder.lockPosition,
-      viewDirection: doorBuilder.viewDirection,
-    };
+    let itemToAdd: QuoteItem;
+
+    if (doorBuilder.itemKind === "folding") {
+      const folding = normalizeFoldingConfig(doorBuilder);
+
+      if (folding.leftPanels + folding.rightPanels !== folding.totalPanels) {
+        return;
+      }
+
+      itemToAdd = {
+        id: `item-${Date.now()}`,
+        itemCode: `FOLD-${String(itemIndex).padStart(2, "0")}`,
+        itemKind: "folding",
+        drawingId: "custom-folding-door-system",
+        productName: buildFoldingDoorSystemName(folding),
+        quantity: Math.max(doorBuilder.quantity, 1),
+        widthMm: Math.max(doorBuilder.widthMm, 1),
+        heightMm: Math.max(doorBuilder.heightMm, 1),
+        floorLevelMm: Number.isFinite(floorLevelMm) ? floorLevelMm : undefined,
+        panelCount: folding.totalPanels,
+        trackCount: 1,
+        folding,
+        aluminumColor: doorBuilder.aluminumColor,
+        glassType: doorBuilder.glassType,
+        hardware:
+          doorBuilder.hardware.trim() && doorBuilder.hardware !== DEFAULT_SLIDING_HARDWARE
+            ? doorBuilder.hardware
+            : buildFoldingHardwareSummary(folding),
+        showLock: false,
+        showOutInMarker: true,
+        lockPosition: doorBuilder.lockPosition,
+        viewDirection: doorBuilder.viewDirection,
+      };
+    } else {
+      const normalizedDoors = normalizeBuilderDoors(
+        doorBuilder.doors,
+        doorBuilder.doorCount,
+        doorBuilder.trackCount
+      );
+
+      itemToAdd = {
+        id: `item-${Date.now()}`,
+        itemCode: `CUSTOM-${String(itemIndex).padStart(2, "0")}`,
+        itemKind: "sliding",
+        drawingId: "custom-door-system",
+        productName: buildSlidingDoorSystemName(doorBuilder.doorCount, doorBuilder.trackCount),
+        quantity: Math.max(doorBuilder.quantity, 1),
+        widthMm: Math.max(doorBuilder.widthMm, 1),
+        heightMm: Math.max(doorBuilder.heightMm, 1),
+        floorLevelMm: Number.isFinite(floorLevelMm) ? floorLevelMm : undefined,
+        panelCount: doorBuilder.doorCount,
+        trackCount: doorBuilder.trackCount,
+        doors: normalizedDoors,
+        aluminumColor: doorBuilder.aluminumColor,
+        glassType: doorBuilder.glassType,
+        hardware: doorBuilder.hardware.trim() || buildSlidingHardwareSummary(normalizedDoors),
+        showLock: false,
+        showOutInMarker: true,
+        lockPosition: doorBuilder.lockPosition,
+        viewDirection: doorBuilder.viewDirection,
+      };
+    }
 
     updateSelectedQuotation({
       items: [...selectedQuotation.items, itemToAdd],
@@ -452,6 +503,42 @@ function DoorSystemBuilderPanel({
   onAddItem: () => void;
 }) {
   const trackOptions = TRACK_OPTIONS.filter((track) => track <= builder.trackCount);
+  const isFolding = builder.itemKind === "folding";
+  const foldingConfig = normalizeFoldingConfig(builder);
+  const foldingSplitIsValid =
+    foldingConfig.leftPanels + foldingConfig.rightPanels === foldingConfig.totalPanels;
+
+  const updateItemKind = (itemKind: QuoteItemKind) => {
+    setBuilder((previous) => {
+      const switchingToFolding = itemKind === "folding";
+      const wasDefaultSlidingHardware = previous.hardware === DEFAULT_SLIDING_HARDWARE;
+      const wasDefaultFoldingHardware = previous.hardware === DEFAULT_FOLDING_HARDWARE;
+      const nextDoorCount = switchingToFolding
+        ? Math.min(Math.max(previous.doorCount, 2), MAX_FOLDING_DOORS)
+        : Math.min(Math.max(previous.doorCount, 1), MAX_SLIDING_DOORS);
+
+      return {
+        ...previous,
+        itemKind,
+        doorCount: nextDoorCount,
+        doors: normalizeBuilderDoors(previous.doors, nextDoorCount, previous.trackCount),
+        foldingLeftCount: Math.min(previous.foldingLeftCount, nextDoorCount),
+        foldingRightCount:
+          previous.foldingLeftCount + previous.foldingRightCount === previous.doorCount
+            ? Math.max(nextDoorCount - previous.foldingLeftCount, 0)
+            : Math.min(previous.foldingRightCount, nextDoorCount),
+        foldingHandleDoorNumbers: previous.foldingHandleDoorNumbers.filter(
+          (doorNumber) => doorNumber <= nextDoorCount
+        ),
+        hardware:
+          switchingToFolding && wasDefaultSlidingHardware
+            ? DEFAULT_FOLDING_HARDWARE
+            : !switchingToFolding && wasDefaultFoldingHardware
+              ? DEFAULT_SLIDING_HARDWARE
+              : previous.hardware,
+      };
+    });
+  };
 
   const updateTrackCount = (trackCount: TrackCount) => {
     setBuilder((previous) => ({
@@ -462,13 +549,45 @@ function DoorSystemBuilderPanel({
   };
 
   const updateDoorCount = (doorCount: number) => {
-    const safeDoorCount = Math.min(Math.max(Math.round(doorCount) || 1, 1), 12);
-
     setBuilder((previous) => ({
       ...previous,
-      doorCount: safeDoorCount,
-      doors: normalizeBuilderDoors(previous.doors, safeDoorCount, previous.trackCount),
+      ...getBuilderDoorCountPatch(previous, doorCount),
     }));
+  };
+
+  const updateFoldingLeftCount = (leftCount: number) => {
+    setBuilder((previous) => ({
+      ...previous,
+      foldingLeftCount: clampNumber(
+        Math.round(leftCount) || 0,
+        0,
+        getSafeDoorCount(previous.doorCount, MAX_FOLDING_DOORS)
+      ),
+    }));
+  };
+
+  const updateFoldingRightCount = (rightCount: number) => {
+    setBuilder((previous) => ({
+      ...previous,
+      foldingRightCount: clampNumber(
+        Math.round(rightCount) || 0,
+        0,
+        getSafeDoorCount(previous.doorCount, MAX_FOLDING_DOORS)
+      ),
+    }));
+  };
+
+  const toggleFoldingHandleDoor = (doorNumber: number) => {
+    setBuilder((previous) => {
+      const hasDoorNumber = previous.foldingHandleDoorNumbers.includes(doorNumber);
+
+      return {
+        ...previous,
+        foldingHandleDoorNumbers: hasDoorNumber
+          ? previous.foldingHandleDoorNumbers.filter((number) => number !== doorNumber)
+          : [...previous.foldingHandleDoorNumbers, doorNumber].sort((a, b) => a - b),
+      };
+    });
   };
 
   const updateDoor = (index: number, patch: Partial<DoorConfig>) => {
@@ -490,15 +609,38 @@ function DoorSystemBuilderPanel({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-950">Add Quote Item</h2>
-          <p className="text-xs text-slate-600">Build a door set from tracks and door behavior.</p>
+          <p className="text-xs text-slate-600">Choose sliding or folding, then build the door set.</p>
         </div>
         <Badge variant="secondary" className="px-3 py-1">
-          {builder.trackCount} track{builder.trackCount > 1 ? "s" : ""} ·{" "}
-          {builder.doorCount} door{builder.doorCount > 1 ? "s" : ""}
+          {isFolding
+            ? `${foldingConfig.totalPanels} doors · ${foldingConfig.leftPanels}L${foldingConfig.rightPanels}R`
+            : `${builder.trackCount} track${builder.trackCount > 1 ? "s" : ""} · ${builder.doorCount} door${builder.doorCount > 1 ? "s" : ""}`}
         </Badge>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-[80px_repeat(3,minmax(0,1fr))_150px_120px]">
+      <div className="mb-3">
+        <Label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Door system
+        </Label>
+        <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-1">
+          {(["sliding", "folding"] as QuoteItemKind[]).map((itemKind) => (
+            <button
+              key={itemKind}
+              type="button"
+              onClick={() => updateItemKind(itemKind)}
+              className={`rounded px-4 py-1.5 text-sm font-semibold transition ${
+                builder.itemKind === itemKind
+                  ? "bg-slate-950 text-white"
+                  : "text-slate-700 hover:bg-white"
+              }`}
+            >
+              {itemKind === "sliding" ? "Sliding" : "Folding"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-7">
         <CompactField label="Qty">
           <Input
             type="number"
@@ -558,79 +700,158 @@ function DoorSystemBuilderPanel({
           />
         </CompactField>
 
-        <CompactField label="Tracks">
-          <select
-            value={builder.trackCount}
-            onChange={(event) => updateTrackCount(Number(event.target.value) as TrackCount)}
-            className={COMPACT_SELECT_CLASS}
-          >
-            {TRACK_OPTIONS.map((track) => (
-              <option key={track} value={track}>
-                {track} track{track > 1 ? "s" : ""}
-              </option>
-            ))}
-          </select>
-        </CompactField>
+        {isFolding ? (
+          <>
+            <CompactField label="Total doors">
+              <Input
+                type="number"
+                min={1}
+                max={MAX_FOLDING_DOORS}
+                value={builder.doorCount}
+                className={COMPACT_INPUT_CLASS}
+                onChange={(event) => updateDoorCount(Number(event.target.value))}
+              />
+            </CompactField>
 
-        <CompactField label="Doors">
-          <Input
-            type="number"
-            min={1}
-            max={12}
-            value={builder.doorCount}
-            className={COMPACT_INPUT_CLASS}
-            onChange={(event) => updateDoorCount(Number(event.target.value))}
-          />
-        </CompactField>
+            <CompactField label="Fold left">
+              <Input
+                type="number"
+                min={0}
+                max={builder.doorCount}
+                value={builder.foldingLeftCount}
+                className={COMPACT_INPUT_CLASS}
+                onChange={(event) => updateFoldingLeftCount(Number(event.target.value))}
+              />
+            </CompactField>
+
+            <CompactField label="Fold right">
+              <Input
+                type="number"
+                min={0}
+                max={builder.doorCount}
+                value={builder.foldingRightCount}
+                className={COMPACT_INPUT_CLASS}
+                onChange={(event) => updateFoldingRightCount(Number(event.target.value))}
+              />
+            </CompactField>
+          </>
+        ) : (
+          <>
+            <CompactField label="Tracks">
+              <select
+                value={builder.trackCount}
+                onChange={(event) => updateTrackCount(Number(event.target.value) as TrackCount)}
+                className={COMPACT_SELECT_CLASS}
+              >
+                {TRACK_OPTIONS.map((track) => (
+                  <option key={track} value={track}>
+                    {track} track{track > 1 ? "s" : ""}
+                  </option>
+                ))}
+              </select>
+            </CompactField>
+
+            <CompactField label="Doors">
+              <Input
+                type="number"
+                min={1}
+                max={MAX_SLIDING_DOORS}
+                value={builder.doorCount}
+                className={COMPACT_INPUT_CLASS}
+                onChange={(event) => updateDoorCount(Number(event.target.value))}
+              />
+            </CompactField>
+          </>
+        )}
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-        <div className="grid grid-cols-[72px_1fr_1fr] gap-2 bg-slate-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          <div>Door</div>
-          <div>Track</div>
-          <div>Type</div>
-        </div>
-        {builder.doors.slice(0, builder.doorCount).map((door, index) => (
-          <div
-            key={door.id}
-            className="grid grid-cols-[72px_1fr_1fr] items-center gap-2 border-t border-slate-200 px-3 py-2"
-          >
-            <div className="text-sm font-semibold text-slate-800">Door {index + 1}</div>
-
-            <select
-              value={Math.min(door.track, builder.trackCount)}
-              onChange={(event) =>
-                updateDoor(index, {
-                  track: Number(event.target.value) as TrackCount,
-                })
-              }
-              className={COMPACT_SELECT_CLASS}
-            >
-              {trackOptions.map((track) => (
-                <option key={track} value={track}>
-                  Track {track}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={door.motion}
-              onChange={(event) =>
-                updateDoor(index, {
-                  motion: event.target.value as DoorMotion,
-                })
-              }
-              className={COMPACT_SELECT_CLASS}
-            >
-              {DOOR_MOTION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+      {isFolding ? (
+        <div className="mt-3 rounded-lg border border-slate-200">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-3 py-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Optional handles
+            </div>
+            {!foldingSplitIsValid && (
+              <div className="text-xs font-semibold text-red-600">
+                Left + right must equal total doors.
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+          <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            {Array.from({ length: foldingConfig.totalPanels }).map((_, index) => {
+              const doorNumber = index + 1;
+              const checked = builder.foldingHandleDoorNumbers.includes(doorNumber);
+
+              return (
+                <label
+                  key={`folding-handle-${doorNumber}`}
+                  className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs font-semibold ${
+                    checked
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleFoldingHandleDoor(doorNumber)}
+                    className="sr-only"
+                  />
+                  Door {doorNumber}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+          <div className="grid grid-cols-[72px_1fr_1fr] gap-2 bg-slate-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div>Door</div>
+            <div>Track</div>
+            <div>Type</div>
+          </div>
+          {builder.doors.slice(0, builder.doorCount).map((door, index) => (
+            <div
+              key={door.id}
+              className="grid grid-cols-[72px_1fr_1fr] items-center gap-2 border-t border-slate-200 px-3 py-2"
+            >
+              <div className="text-sm font-semibold text-slate-800">Door {index + 1}</div>
+
+              <select
+                value={Math.min(door.track, builder.trackCount)}
+                onChange={(event) =>
+                  updateDoor(index, {
+                    track: Number(event.target.value) as TrackCount,
+                  })
+                }
+                className={COMPACT_SELECT_CLASS}
+              >
+                {trackOptions.map((track) => (
+                  <option key={track} value={track}>
+                    Track {track}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={door.motion}
+                onChange={(event) =>
+                  updateDoor(index, {
+                    motion: event.target.value as DoorMotion,
+                  })
+                }
+                className={COMPACT_SELECT_CLASS}
+              >
+                {DOOR_MOTION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
 
       <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50">
         <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-800">
@@ -712,7 +933,11 @@ function DoorSystemBuilderPanel({
         </div>
       </details>
 
-      <Button className="mt-3 h-9 w-full" onClick={onAddItem}>
+      <Button
+        className="mt-3 h-9 w-full"
+        onClick={onAddItem}
+        disabled={isFolding && !foldingSplitIsValid}
+      >
         <Save className="mr-2 h-4 w-4" />
         Add Quote Item
       </Button>
@@ -770,17 +995,89 @@ function normalizeBuilderDoors(
   });
 }
 
+function getBuilderDoorCountPatch(
+  previous: DoorBuilderState,
+  doorCount: number
+): Pick<
+  DoorBuilderState,
+  | "doorCount"
+  | "doors"
+  | "foldingLeftCount"
+  | "foldingRightCount"
+  | "foldingHandleDoorNumbers"
+> {
+  const maxDoorCount =
+    previous.itemKind === "folding" ? MAX_FOLDING_DOORS : MAX_SLIDING_DOORS;
+  const safeDoorCount = getSafeDoorCount(doorCount, maxDoorCount);
+  const previousFoldingWasBalanced =
+    previous.foldingLeftCount + previous.foldingRightCount === previous.doorCount;
+  const foldingLeftCount = Math.min(previous.foldingLeftCount, safeDoorCount);
+  const foldingRightCount = previousFoldingWasBalanced
+    ? Math.max(safeDoorCount - foldingLeftCount, 0)
+    : Math.min(previous.foldingRightCount, safeDoorCount);
+
+  return {
+    doorCount: safeDoorCount,
+    doors: normalizeBuilderDoors(previous.doors, safeDoorCount, previous.trackCount),
+    foldingLeftCount,
+    foldingRightCount,
+    foldingHandleDoorNumbers: previous.foldingHandleDoorNumbers.filter(
+      (doorNumber) => doorNumber <= safeDoorCount
+    ),
+  };
+}
+
 function clampTrack(track: TrackCount, trackCount: TrackCount): TrackCount {
   return Math.min(Math.max(track, 1), trackCount) as TrackCount;
 }
 
-function buildDoorSystemName(doorCount: number, trackCount: TrackCount) {
+function getSafeDoorCount(doorCount: number, maxDoorCount: number) {
+  return clampNumber(Math.round(doorCount) || 1, 1, maxDoorCount);
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function normalizeFoldingConfig(builder: DoorBuilderState): FoldingDoorConfig {
+  const totalPanels = getSafeDoorCount(builder.doorCount, MAX_FOLDING_DOORS);
+  const leftPanels = clampNumber(Math.round(builder.foldingLeftCount) || 0, 0, totalPanels);
+  const rightPanels = clampNumber(
+    Math.round(builder.foldingRightCount) || 0,
+    0,
+    totalPanels
+  );
+
+  return {
+    totalPanels,
+    leftPanels,
+    rightPanels,
+    handleDoorNumbers: builder.foldingHandleDoorNumbers.filter(
+      (doorNumber) => doorNumber >= 1 && doorNumber <= totalPanels
+    ),
+  };
+}
+
+function buildSlidingDoorSystemName(doorCount: number, trackCount: TrackCount) {
   return `${doorCount}-door ${trackCount}-track door system`;
 }
 
-function buildHardwareSummary(doors: DoorConfig[]) {
+function buildFoldingDoorSystemName(folding: FoldingDoorConfig) {
+  return `${folding.totalPanels}-door folding system (${folding.leftPanels}L${folding.rightPanels}R)`;
+}
+
+function buildSlidingHardwareSummary(doors: DoorConfig[]) {
   const fixedCount = doors.filter((door) => door.motion === "fixed").length;
   const slidingCount = doors.length - fixedCount;
 
   return `${fixedCount} fixed door${fixedCount === 1 ? "" : "s"} plus ${slidingCount} sliding door${slidingCount === 1 ? "" : "s"}`;
+}
+
+function buildFoldingHardwareSummary(folding: FoldingDoorConfig) {
+  const handleSummary =
+    folding.handleDoorNumbers.length > 0
+      ? ` with handles on door ${folding.handleDoorNumbers.join(", ")}`
+      : "";
+
+  return `${folding.totalPanels} folding leaves opening ${folding.leftPanels} left / ${folding.rightPanels} right${handleSummary}`;
 }

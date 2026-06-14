@@ -16,6 +16,7 @@ type QuoteItemCardProps = {
 export function QuoteItemCard({ item, onUpdateItem, onDeleteItem }: QuoteItemCardProps) {
   const [draftWidth, setDraftWidth] = useState(String(item.widthMm));
   const [draftHeight, setDraftHeight] = useState(String(item.heightMm));
+  const isFoldingItem = item.itemKind === "folding" || item.drawingId === "custom-folding-door-system";
 
   useEffect(() => {
     setDraftWidth(String(item.widthMm));
@@ -80,6 +81,7 @@ export function QuoteItemCard({ item, onUpdateItem, onDeleteItem }: QuoteItemCar
           panelCount={item.panelCount}
           trackCount={item.trackCount}
           doors={item.doors}
+          folding={item.folding}
           quantity={item.quantity}
           showTopView
           showLock={item.showLock}
@@ -120,10 +122,23 @@ export function QuoteItemCard({ item, onUpdateItem, onDeleteItem }: QuoteItemCar
                 <SpecRow label="Key height" value={`${item.keyHeightMm} mm`} />
               )}
               <SpecRow label="Panels" value={`${item.panelCount}`} />
-              <SpecRow
-                label="Tracks"
-                value={`${item.trackCount} track${item.trackCount > 1 ? "s" : ""}`}
-              />
+              {isFoldingItem && item.folding ? (
+                <>
+                  <SpecRow
+                    label="Fold split"
+                    value={`${item.folding.leftPanels}L${item.folding.rightPanels}R`}
+                  />
+                  <SpecRow
+                    label="Handles"
+                    value={formatHandleDoorNumbers(item.folding.handleDoorNumbers)}
+                  />
+                </>
+              ) : (
+                <SpecRow
+                  label="Tracks"
+                  value={`${item.trackCount} track${item.trackCount > 1 ? "s" : ""}`}
+                />
+              )}
               <SpecRow label="Aluminum color" value={item.aluminumColor} />
               <SpecRow label="Glass" value={item.glassType} />
               <SpecRow label="Hardware" value={item.hardware} />
@@ -210,6 +225,12 @@ function ToggleSpecRow({
       </td>
     </tr>
   );
+}
+
+function formatHandleDoorNumbers(handleDoorNumbers: number[]) {
+  return handleDoorNumbers.length > 0
+    ? `Door ${handleDoorNumbers.join(", ")}`
+    : "No handles";
 }
 
 function SpecRow({ label, value }: { label: string; value: string }) {
