@@ -1,4 +1,5 @@
 import { FourPanelSlidingDoorDrawing } from "./FourPanelSlidingDoorDrawing";
+import { FoldingDoorDrawing } from "./FoldingDoorDrawing";
 import {
   SlidingDoorBehindTrackDrawing,
   SlidingDoorBehindTrackReverseDrawing,
@@ -9,7 +10,12 @@ import {
 } from "./SlidingDoorFrameDrawing";
 import { SlidingDoorDrawing } from "./SlidingDoorDrawing";
 import { TwoPanelSlidingDoorWithPostDrawing } from "./TwoPanelSlidingDoorWithPostDrawing";
-import type { DoorConfig, DrawingId, TrackCount } from "@/components/quotations/types";
+import type {
+  DoorConfig,
+  DrawingId,
+  FoldingDoorConfig,
+  TrackCount,
+} from "@/components/quotations/types";
 
 type DrawingRendererProps = {
   drawingId?: DrawingId;
@@ -20,6 +26,7 @@ type DrawingRendererProps = {
   panelCount: number;
   trackCount?: TrackCount;
   doors?: DoorConfig[];
+  folding?: FoldingDoorConfig;
   quantity: number;
   showTopView?: boolean;
   showLock: boolean;
@@ -41,6 +48,7 @@ export function DrawingRenderer({
   panelCount,
   trackCount = 2,
   doors,
+  folding,
   quantity,
   showTopView,
   showLock,
@@ -52,6 +60,19 @@ export function DrawingRenderer({
   className,
   printMode = false,
 }: DrawingRendererProps) {
+  if (drawingId === "custom-folding-door-system") {
+    return (
+      <FoldingDoorDrawing
+        widthMm={widthMm}
+        heightMm={heightMm}
+        panelCount={panelCount}
+        folding={folding}
+        showOutInMarker={showOutInMarker}
+        className={className}
+      />
+    );
+  }
+
   if (drawingId === "four-panel-sliding-door") {
     return (
       <FourPanelSlidingDoorDrawing
