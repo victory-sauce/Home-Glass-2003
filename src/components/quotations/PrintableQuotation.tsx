@@ -1,6 +1,6 @@
 import { DrawingRenderer } from "@/components/drawings/DrawingRenderer";
 import { cn } from "@/lib/utils";
-import type { Quotation } from "./types";
+import type { FoldingDoorConfig, Quotation } from "./types";
 
 type PrintableQuotationProps = {
   quotation?: Quotation;
@@ -117,7 +117,7 @@ export function PrintableQuotation({
                   />
                   <PrintableRow
                     label="Handles"
-                    value={formatHandleDoorNumbers(item.folding.handleDoorNumbers)}
+                    value={formatFoldingHandles(item.folding)}
                   />
                 </>
               ) : (
@@ -190,8 +190,15 @@ function PrintableRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatHandleDoorNumbers(handleDoorNumbers: number[]) {
-  return handleDoorNumbers.length > 0
-    ? `Door ${handleDoorNumbers.join(", ")}`
+function formatFoldingHandles(folding: FoldingDoorConfig) {
+  const handles = folding.handles?.length
+    ? folding.handles
+    : folding.handleDoorNumbers.map((doorNumber) => ({
+        doorNumber,
+        side: doorNumber <= folding.leftPanels ? "right" : "left",
+      }));
+
+  return handles.length > 0
+    ? handles.map((handle) => `Door ${handle.doorNumber} ${handle.side}`).join(", ")
     : "No handles";
 }

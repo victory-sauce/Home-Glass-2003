@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2 } from "lucide-react";
-import type { QuoteItem } from "./types";
+import type { FoldingDoorConfig, QuoteItem } from "./types";
 
 type QuoteItemCardProps = {
   item: QuoteItem;
@@ -130,7 +130,7 @@ export function QuoteItemCard({ item, onUpdateItem, onDeleteItem }: QuoteItemCar
                   />
                   <SpecRow
                     label="Handles"
-                    value={formatHandleDoorNumbers(item.folding.handleDoorNumbers)}
+                    value={formatFoldingHandles(item.folding)}
                   />
                 </>
               ) : (
@@ -227,9 +227,16 @@ function ToggleSpecRow({
   );
 }
 
-function formatHandleDoorNumbers(handleDoorNumbers: number[]) {
-  return handleDoorNumbers.length > 0
-    ? `Door ${handleDoorNumbers.join(", ")}`
+function formatFoldingHandles(folding: FoldingDoorConfig) {
+  const handles = folding.handles?.length
+    ? folding.handles
+    : folding.handleDoorNumbers.map((doorNumber) => ({
+        doorNumber,
+        side: doorNumber <= folding.leftPanels ? "right" : "left",
+      }));
+
+  return handles.length > 0
+    ? handles.map((handle) => `Door ${handle.doorNumber} ${handle.side}`).join(", ")
     : "No handles";
 }
 

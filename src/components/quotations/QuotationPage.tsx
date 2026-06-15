@@ -24,6 +24,8 @@ import type {
   DoorConfig,
   DoorMotion,
   FoldingDoorConfig,
+  FoldingHandleConfig,
+  HandleSide,
   QuoteItemKind,
   QuoteItem,
   Quotation,
@@ -49,6 +51,7 @@ const DEFAULT_SLIDING_HARDWARE = "Custom track door system";
 const DEFAULT_FOLDING_HARDWARE = "Custom folding door system";
 const MAX_SLIDING_DOORS = 12;
 const MAX_FOLDING_DOORS = 32;
+const MAX_FOLDING_HANDLES = 2;
 
 type DoorBuilderState = {
   itemKind: QuoteItemKind;
@@ -61,7 +64,7 @@ type DoorBuilderState = {
   doors: DoorConfig[];
   foldingLeftCount: number;
   foldingRightCount: number;
-  foldingHandleDoorNumbers: number[];
+  foldingHandles: FoldingHandleConfig[];
   aluminumColor: string;
   glassType: string;
   hardware: string;
@@ -83,7 +86,7 @@ const DEFAULT_DOOR_BUILDER: DoorBuilderState = {
   ],
   foldingLeftCount: 0,
   foldingRightCount: 2,
-  foldingHandleDoorNumbers: [],
+  foldingHandles: [],
   aluminumColor: "White",
   glassType: "Clear tempered glass",
   hardware: DEFAULT_SLIDING_HARDWARE,
@@ -527,9 +530,7 @@ function DoorSystemBuilderPanel({
           previous.foldingLeftCount + previous.foldingRightCount === previous.doorCount
             ? Math.max(nextDoorCount - previous.foldingLeftCount, 0)
             : Math.min(previous.foldingRightCount, nextDoorCount),
-        foldingHandleDoorNumbers: previous.foldingHandleDoorNumbers.filter(
-          (doorNumber) => doorNumber <= nextDoorCount
-        ),
+        foldingHandles: normalizeFoldingHandles(previous.foldingHandles, nextDoorCount),
         hardware:
           switchingToFolding && wasDefaultSlidingHardware
             ? DEFAULT_FOLDING_HARDWARE
@@ -579,15 +580,32 @@ function DoorSystemBuilderPanel({
 
   const toggleFoldingHandleDoor = (doorNumber: number) => {
     setBuilder((previous) => {
-      const hasDoorNumber = previous.foldingHandleDoorNumbers.includes(doorNumber);
+      const hasDoorNumber = previous.foldingHandles.some(
+        (handle) => handle.doorNumber === doorNumber
+      );
 
       return {
         ...previous,
-        foldingHandleDoorNumbers: hasDoorNumber
-          ? previous.foldingHandleDoorNumbers.filter((number) => number !== doorNumber)
-          : [...previous.foldingHandleDoorNumbers, doorNumber].sort((a, b) => a - b),
+        foldingHandles: hasDoorNumber
+          ? previous.foldingHandles.filter((handle) => handle.doorNumber !== doorNumber)
+          : normalizeFoldingHandles(
+              [
+                ...previous.foldingHandles,
+                { doorNumber, side: getDefaultHandleSide(doorNumber, previous.foldingLeftCount) },
+              ],
+              previous.doorCount
+            ),
       };
     });
+  };
+
+  const updateFoldingHandleSide = (doorNumber: number, side: HandleSide) => {
+    setBuilder((previous) => ({
+      ...previous,
+      foldingHandles: previous.foldingHandles.map((handle) =>
+        handle.doorNumber === doorNumber ? { ...handle, side } : handle
+      ),
+    }));
   };
 
   const updateDoor = (index: number, patch: Partial<DoorConfig>) => {
@@ -780,20 +798,27 @@ function DoorSystemBuilderPanel({
           <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {Array.from({ length: foldingConfig.totalPanels }).map((_, index) => {
               const doorNumber = index + 1;
-              const checked = builder.foldingHandleDoorNumbers.includes(doorNumber);
+              const checked = builder.foldingHandles.some(
+                (handle) => handle.doorNumber === doorNumber
+              );
+              const disabled =
+                !checked && builder.foldingHandles.length >= MAX_FOLDING_HANDLES;
 
               return (
                 <label
                   key={`folding-handle-${doorNumber}`}
-                  className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs font-semibold ${
+                  className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs font-semibold ${
                     checked
                       ? "border-slate-950 bg-slate-950 text-white"
-                      : "border-slate-200 bg-white text-slate-700"
+                      : disabled
+                        ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                        : "cursor-pointer border-slate-200 bg-white text-slate-700"
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={checked}
+                    disabled={disabled}
                     onChange={() => toggleFoldingHandleDoor(doorNumber)}
                     className="sr-only"
                   />
@@ -802,6 +827,30 @@ function DoorSystemBuilderPanel({
               );
             })}
           </div>
+          {builder.foldingHandles.length > 0 && (
+            <div className="grid gap-2 border-t border-slate-200 p-3 md:grid-cols-2">
+              {builder.foldingHandles.map((handle) => (
+                <CompactField
+                  key={`folding-handle-side-${handle.doorNumber}`}
+                  label={`Door ${handle.doorNumber} handle side`}
+                >
+                  <select
+                    value={handle.side}
+                    onChange={(event) =>
+                      updateFoldingHandleSide(
+                        handle.doorNumber,
+                        event.target.value as HandleSide
+                      )
+                    }
+                    className={COMPACT_SELECT_CLASS}
+                  >
+                    <option value="left">Left side</option>
+                    <option value="right">Right side</option>
+                  </select>
+                </CompactField>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
@@ -1004,7 +1053,7 @@ function getBuilderDoorCountPatch(
   | "doors"
   | "foldingLeftCount"
   | "foldingRightCount"
-  | "foldingHandleDoorNumbers"
+  | "foldingHandles"
 > {
   const maxDoorCount =
     previous.itemKind === "folding" ? MAX_FOLDING_DOORS : MAX_SLIDING_DOORS;
@@ -1021,9 +1070,7 @@ function getBuilderDoorCountPatch(
     doors: normalizeBuilderDoors(previous.doors, safeDoorCount, previous.trackCount),
     foldingLeftCount,
     foldingRightCount,
-    foldingHandleDoorNumbers: previous.foldingHandleDoorNumbers.filter(
-      (doorNumber) => doorNumber <= safeDoorCount
-    ),
+    foldingHandles: normalizeFoldingHandles(previous.foldingHandles, safeDoorCount),
   };
 }
 
@@ -1048,13 +1095,14 @@ function normalizeFoldingConfig(builder: DoorBuilderState): FoldingDoorConfig {
     totalPanels
   );
 
+  const handles = normalizeFoldingHandles(builder.foldingHandles, totalPanels);
+
   return {
     totalPanels,
     leftPanels,
     rightPanels,
-    handleDoorNumbers: builder.foldingHandleDoorNumbers.filter(
-      (doorNumber) => doorNumber >= 1 && doorNumber <= totalPanels
-    ),
+    handleDoorNumbers: handles.map((handle) => handle.doorNumber),
+    handles,
   };
 }
 
@@ -1076,8 +1124,54 @@ function buildSlidingHardwareSummary(doors: DoorConfig[]) {
 function buildFoldingHardwareSummary(folding: FoldingDoorConfig) {
   const handleSummary =
     folding.handleDoorNumbers.length > 0
-      ? ` with handles on door ${folding.handleDoorNumbers.join(", ")}`
+      ? ` with ${formatFoldingHandleSummary(folding)}`
       : "";
 
   return `${folding.totalPanels} folding leaves opening ${folding.leftPanels} left / ${folding.rightPanels} right${handleSummary}`;
+}
+
+function normalizeFoldingHandles(
+  handles: FoldingHandleConfig[],
+  totalPanels: number
+): FoldingHandleConfig[] {
+  const seenDoorNumbers = new Set<number>();
+
+  return handles
+    .filter((handle) => {
+      const doorNumber = Math.round(handle.doorNumber);
+
+      if (
+        doorNumber < 1 ||
+        doorNumber > totalPanels ||
+        seenDoorNumbers.has(doorNumber)
+      ) {
+        return false;
+      }
+
+      seenDoorNumbers.add(doorNumber);
+      return true;
+    })
+    .slice(0, MAX_FOLDING_HANDLES)
+    .map((handle) => ({
+      doorNumber: Math.round(handle.doorNumber),
+      side: handle.side === "left" ? "left" : "right",
+    }))
+    .sort((a, b) => a.doorNumber - b.doorNumber);
+}
+
+function getDefaultHandleSide(doorNumber: number, leftPanels: number): HandleSide {
+  return doorNumber <= leftPanels ? "right" : "left";
+}
+
+function formatFoldingHandleSummary(folding: FoldingDoorConfig) {
+  const handles = folding.handles?.length
+    ? folding.handles
+    : folding.handleDoorNumbers.map((doorNumber) => ({
+        doorNumber,
+        side: doorNumber <= folding.leftPanels ? "right" : "left",
+      }));
+
+  return `handles on ${handles
+    .map((handle) => `door ${handle.doorNumber} ${handle.side}`)
+    .join(", ")}`;
 }

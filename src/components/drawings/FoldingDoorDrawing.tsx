@@ -1,4 +1,4 @@
-import type { FoldingDoorConfig } from "@/components/quotations/types";
+import type { FoldingDoorConfig, HandleSide } from "@/components/quotations/types";
 import { cn } from "@/lib/utils";
 
 type FoldingDoorDrawingProps = {
@@ -29,10 +29,12 @@ type FoldingPanelProps = {
   index: number;
   leftPanels: number;
   showHandle: boolean;
+  handleSide: HandleSide;
 };
 
 const LINE_COLOR = "#111827";
 const GUIDE_COLOR = "#8a8f94";
+const DRAWING_FONT = "Georgia, 'Times New Roman', serif";
 const MAX_FOLDING_PANELS = 32;
 
 export function FoldingDoorDrawing({
@@ -57,11 +59,7 @@ export function FoldingDoorDrawing({
     leftPanels + configuredRightPanels === totalPanels
       ? clamp(configuredRightPanels, 0, totalPanels)
       : totalPanels - leftPanels;
-  const handleDoorNumbers = new Set(
-    (folding?.handleDoorNumbers ?? []).filter(
-      (doorNumber) => doorNumber >= 1 && doorNumber <= totalPanels
-    )
-  );
+  const handlesByDoorNumber = getFoldingHandlesByDoorNumber(folding, totalPanels, leftPanels);
 
   const openingX = layout.frameX + layout.railThickness;
   const openingY = layout.frameY + layout.railThickness;
@@ -114,7 +112,8 @@ export function FoldingDoorDrawing({
           height={openingHeight}
           index={index}
           leftPanels={leftPanels}
-          showHandle={handleDoorNumbers.has(index + 1)}
+          showHandle={handlesByDoorNumber.has(index + 1)}
+          handleSide={handlesByDoorNumber.get(index + 1) ?? "right"}
         />
       ))}
 
@@ -172,12 +171,34 @@ function FoldingTopView({
   rightPanels: number;
   showOutInMarker: boolean;
 }) {
-  const height = 34;
-  const endBlockWidth = 18;
+  const height = 24;
+  const endBlockWidth = 16;
   const innerX = x + endBlockWidth;
   const innerWidth = Math.max(width - endBlockWidth * 2, 1);
   const panelWidth = innerWidth / totalPanels;
   const splitX = innerX + panelWidth * leftPanels;
+  const railInset = 6;
+  const foldStackY = y + height + 12;
+  const foldLegendY = foldStackY + 13;
+  const arrowGap = 18;
+  const leftFoldWidth = getFoldAccordionWidth(leftPanels);
+  const rightFoldWidth = getFoldAccordionWidth(rightPanels);
+  const leftArrow = getAdjacentFoldArrow({
+    edgeX: innerX,
+    foldWidth: leftFoldWidth,
+    direction: "left",
+    minX: innerX,
+    maxX: innerX + innerWidth,
+    gap: arrowGap,
+  });
+  const rightArrow = getAdjacentFoldArrow({
+    edgeX: innerX + innerWidth,
+    foldWidth: rightFoldWidth,
+    direction: "right",
+    minX: innerX,
+    maxX: innerX + innerWidth,
+    gap: arrowGap,
+  });
 
   return (
     <g fill="none" stroke={LINE_COLOR} strokeLinecap="square" strokeLinejoin="miter">
@@ -192,12 +213,18 @@ function FoldingTopView({
         strokeWidth={1.7}
       />
 
-      <line x1={innerX} y1={y + 9} x2={innerX + innerWidth} y2={y + 9} strokeWidth={1.3} />
       <line
         x1={innerX}
-        y1={y + height - 9}
+        y1={y + railInset}
         x2={innerX + innerWidth}
-        y2={y + height - 9}
+        y2={y + railInset}
+        strokeWidth={1.3}
+      />
+      <line
+        x1={innerX}
+        y1={y + height - railInset}
+        x2={innerX + innerWidth}
+        y2={y + height - railInset}
         strokeWidth={1.3}
       />
 
@@ -217,18 +244,18 @@ function FoldingTopView({
 
       {leftPanels > 0 && (
         <FoldArrow
-          x1={innerX + innerWidth * 0.4}
-          x2={innerX + innerWidth * 0.18}
-          y={y - 18}
+          x1={leftArrow.x1}
+          x2={leftArrow.x2}
+          y={foldLegendY}
           direction="left"
         />
       )}
 
       {rightPanels > 0 && (
         <FoldArrow
-          x1={innerX + innerWidth * 0.6}
-          x2={innerX + innerWidth * 0.82}
-          y={y - 18}
+          x1={rightArrow.x1}
+          x2={rightArrow.x2}
+          y={foldLegendY}
           direction="right"
         />
       )}
@@ -243,51 +270,25 @@ function FoldingTopView({
       {leftPanels > 0 && (
         <FoldAccordionMark
           x={innerX}
-          y={y + height + 12}
+          y={foldStackY}
           direction="left"
           panelCount={leftPanels}
           anchor="edge"
+          strokeColor={LINE_COLOR}
         />
       )}
       {rightPanels > 0 && (
         <FoldAccordionMark
           x={innerX + innerWidth}
-          y={y + height + 12}
+          y={foldStackY}
           direction="right"
           panelCount={rightPanels}
           anchor="edge"
+          strokeColor={LINE_COLOR}
         />
       )}
 
-      {showOutInMarker && (
-        <g transform={`translate(${x + width + 48} ${y - 10})`}>
-          <text
-            x={0}
-            y={0}
-            textAnchor="middle"
-            fontFamily="Times New Roman, serif"
-            fontSize={31}
-            fontWeight={700}
-            fill={LINE_COLOR}
-            stroke="none"
-          >
-            OUT
-          </text>
-          <line x1={-38} y1={10} x2={38} y2={10} strokeWidth={1.8} />
-          <text
-            x={0}
-            y={40}
-            textAnchor="middle"
-            fontFamily="Times New Roman, serif"
-            fontSize={31}
-            fontWeight={700}
-            fill={LINE_COLOR}
-            stroke="none"
-          >
-            IN
-          </text>
-        </g>
-      )}
+      {showOutInMarker && <OutInLabel x={x + width + 54} y={y - 6} />}
     </g>
   );
 }
@@ -341,15 +342,16 @@ function FoldingPanel({
   index,
   leftPanels,
   showHandle,
+  handleSide,
 }: FoldingPanelProps) {
   const stileWidth = Math.max(4, Math.min(9, width * 0.08));
   const glassInsetX = Math.max(7, Math.min(13, width * 0.12));
-  const glassInsetY = Math.max(10, Math.min(16, height * 0.055));
+  const glassInsetY = Math.max(5, Math.min(8, height * 0.028));
   const glassX = x + glassInsetX;
   const glassY = y + glassInsetY;
   const glassWidth = Math.max(width - glassInsetX * 2, 6);
   const glassHeight = Math.max(height - glassInsetY * 2, 12);
-  const handleOnRight = index < leftPanels;
+  const handleOnRight = handleSide === "right";
   const handleX = handleOnRight ? x + width - stileWidth - 3 : x + stileWidth + 1;
   const foldDirection = index < leftPanels ? "left" : "right";
 
@@ -461,23 +463,44 @@ function FoldingMovementLegend({
   leftPanels: number;
   rightPanels: number;
 }) {
+  const arrowGap = 18;
+  const leftFoldWidth = getFoldAccordionWidth(leftPanels);
+  const rightFoldWidth = getFoldAccordionWidth(rightPanels);
+  const leftArrow = getAdjacentFoldArrow({
+    edgeX: x,
+    foldWidth: leftFoldWidth,
+    direction: "left",
+    minX: x,
+    maxX: x + width,
+    gap: arrowGap,
+  });
+  const rightArrow = getAdjacentFoldArrow({
+    edgeX: x + width,
+    foldWidth: rightFoldWidth,
+    direction: "right",
+    minX: x,
+    maxX: x + width,
+    gap: arrowGap,
+  });
+
   return (
-    <g fill="none" stroke={GUIDE_COLOR} strokeLinecap="square" strokeLinejoin="miter">
+    <g fill="none" stroke={LINE_COLOR} strokeLinecap="square" strokeLinejoin="miter">
       {leftPanels > 0 && (
         <g>
           <FoldArrow
-            x1={x + width * 0.44}
-            x2={x + width * 0.24}
+            x1={leftArrow.x1}
+            x2={leftArrow.x2}
             y={y}
             direction="left"
-            strokeColor={GUIDE_COLOR}
+            strokeColor={LINE_COLOR}
           />
           <FoldAccordionMark
             x={x}
-            y={y + 22}
+            y={y - 13}
             direction="left"
             panelCount={leftPanels}
             anchor="edge"
+            strokeColor={LINE_COLOR}
           />
         </g>
       )}
@@ -485,23 +508,55 @@ function FoldingMovementLegend({
       {rightPanels > 0 && (
         <g>
           <FoldArrow
-            x1={x + width * 0.56}
-            x2={x + width * 0.76}
+            x1={rightArrow.x1}
+            x2={rightArrow.x2}
             y={y}
             direction="right"
-            strokeColor={GUIDE_COLOR}
+            strokeColor={LINE_COLOR}
           />
           <FoldAccordionMark
             x={x + width}
-            y={y + 22}
+            y={y - 13}
             direction="right"
             panelCount={rightPanels}
             anchor="edge"
+            strokeColor={LINE_COLOR}
           />
         </g>
       )}
     </g>
   );
+}
+
+function getAdjacentFoldArrow({
+  edgeX,
+  foldWidth,
+  direction,
+  minX,
+  maxX,
+  gap,
+}: {
+  edgeX: number;
+  foldWidth: number;
+  direction: "left" | "right";
+  minX: number;
+  maxX: number;
+  gap: number;
+}) {
+  const desiredLength = Math.min(120, Math.max(70, (maxX - minX) * 0.22));
+  const minLength = 42;
+
+  if (direction === "left") {
+    const foldRightX = edgeX + foldWidth;
+    const tailX = Math.min(maxX, foldRightX + gap + desiredLength);
+    const headX = Math.min(foldRightX + gap, tailX - minLength);
+    return { x1: tailX, x2: headX };
+  }
+
+  const foldLeftX = edgeX - foldWidth;
+  const headX = Math.max(minX, foldLeftX - gap);
+  const tailX = Math.max(minX, headX - desiredLength);
+  return { x1: tailX, x2: headX };
 }
 
 function FoldArrow({
@@ -538,15 +593,17 @@ function FoldAccordionMark({
   direction,
   panelCount,
   anchor = "center",
+  strokeColor = GUIDE_COLOR,
 }: {
   x: number;
   y: number;
   direction: "left" | "right";
   panelCount: number;
   anchor?: "center" | "edge";
+  strokeColor?: string;
 }) {
   const safePanelCount = Math.max(Math.round(panelCount), 1);
-  const segmentWidth = 14;
+  const segmentWidth = FOLD_ACCORDION_SEGMENT_WIDTH;
   const segmentHeight = 26;
   const pathWidth = segmentWidth * safePanelCount;
   const startX =
@@ -568,10 +625,16 @@ function FoldAccordionMark({
     .join(" ");
 
   return (
-    <g stroke={GUIDE_COLOR} strokeWidth={1.7} fill="none" strokeLinecap="square">
+    <g stroke={strokeColor} strokeWidth={1.7} fill="none" strokeLinecap="square">
       <path d={pathD} />
     </g>
   );
+}
+
+const FOLD_ACCORDION_SEGMENT_WIDTH = 14;
+
+function getFoldAccordionWidth(panelCount: number) {
+  return Math.max(Math.round(panelCount), 0) * FOLD_ACCORDION_SEGMENT_WIDTH;
 }
 
 function GlassMark({
@@ -608,79 +671,161 @@ function FrameDimensions({
 }) {
   const widthY = y - 45;
   const heightX = x - 52;
+  const verticalLabelX = heightX < 46 ? heightX + 28 : heightX - 16;
+  const widthLabel = `${Math.round(Math.max(widthMm, 1))}`;
+  const heightLabel = `${Math.round(Math.max(heightMm, 1))}`;
 
   return (
-    <g stroke={LINE_COLOR} fill={LINE_COLOR} strokeLinecap="square" strokeLinejoin="miter">
-      <DimensionArrow x1={x} y1={widthY} x2={x + width} y2={widthY} />
+    <g fill="none" stroke={LINE_COLOR} strokeLinecap="square" strokeLinejoin="miter">
+      <DimensionLine
+        x1={x}
+        y1={widthY}
+        x2={x + width}
+        y2={widthY}
+        label={widthLabel}
+        labelX={x + width / 2}
+        labelY={widthY + 10}
+      />
       <line x1={x} y1={widthY - 16} x2={x} y2={y - 8} strokeWidth={1.2} />
       <line x1={x + width} y1={widthY - 16} x2={x + width} y2={y - 8} strokeWidth={1.2} />
-      <text
-        x={x + width / 2}
-        y={widthY + 8}
-        textAnchor="middle"
-        fontFamily="Times New Roman, serif"
-        fontSize={26}
-        stroke="none"
-      >
-        {Math.round(widthMm)}
-      </text>
 
-      <DimensionArrow x1={heightX} y1={y} x2={heightX} y2={y + height} />
+      <DimensionLine
+        x1={heightX}
+        y1={y}
+        x2={heightX}
+        y2={y + height}
+        label={heightLabel}
+        labelX={verticalLabelX}
+        labelY={y + height / 2 + 9}
+        vertical
+      />
       <line x1={heightX - 14} y1={y} x2={x - 8} y2={y} strokeWidth={1.2} />
       <line x1={heightX - 14} y1={y + height} x2={x - 8} y2={y + height} strokeWidth={1.2} />
-      <text
-        x={heightX - 16}
-        y={y + height / 2 + 8}
-        textAnchor="middle"
-        fontFamily="Times New Roman, serif"
-        fontSize={26}
-        stroke="none"
-      >
-        {Math.round(heightMm)}
-      </text>
     </g>
   );
 }
 
-function DimensionArrow({
+function DimensionLine({
   x1,
   y1,
   x2,
   y2,
+  label,
+  labelX,
+  labelY,
+  vertical = false,
 }: {
   x1: number;
   y1: number;
   x2: number;
   y2: number;
+  label: string;
+  labelX: number;
+  labelY: number;
+  vertical?: boolean;
 }) {
-  const isHorizontal = y1 === y2;
-  const headSize = 10;
-
-  if (isHorizontal) {
-    return (
-      <g fill="none" stroke={LINE_COLOR} strokeWidth={1.2}>
-        <line x1={x1} y1={y1} x2={x2} y2={y2} />
-        <line x1={x1} y1={y1} x2={x1 + headSize} y2={y1 - headSize} />
-        <line x1={x1} y1={y1} x2={x1 + headSize} y2={y1 + headSize} />
-        <line x1={x2} y1={y2} x2={x2 - headSize} y2={y2 - headSize} />
-        <line x1={x2} y1={y2} x2={x2 - headSize} y2={y2 + headSize} />
-      </g>
-    );
-  }
+  const fontSize = 24;
+  const labelWidth = Math.max(54, label.length * 14);
 
   return (
-    <g fill="none" stroke={LINE_COLOR} strokeWidth={1.2}>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} />
-      <line x1={x1} y1={y1} x2={x1 - headSize} y2={y1 + headSize} />
-      <line x1={x1} y1={y1} x2={x1 + headSize} y2={y1 + headSize} />
-      <line x1={x2} y1={y2} x2={x2 - headSize} y2={y2 - headSize} />
-      <line x1={x2} y1={y2} x2={x2 + headSize} y2={y2 - headSize} />
+    <g>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth={1.2} />
+      {vertical ? (
+        <>
+          <path d={`M ${x1 - 8} ${y1 + 8} L ${x1} ${y1} L ${x1 + 8} ${y1 + 8}`} strokeWidth={1.2} />
+          <path d={`M ${x2 - 8} ${y2 - 8} L ${x2} ${y2} L ${x2 + 8} ${y2 - 8}`} strokeWidth={1.2} />
+        </>
+      ) : (
+        <>
+          <path d={`M ${x1 + 8} ${y1 - 8} L ${x1} ${y1} L ${x1 + 8} ${y1 + 8}`} strokeWidth={1.2} />
+          <path d={`M ${x2 - 8} ${y2 - 8} L ${x2} ${y2} L ${x2 - 8} ${y2 + 8}`} strokeWidth={1.2} />
+        </>
+      )}
+      <rect
+        x={labelX - labelWidth / 2}
+        y={labelY - fontSize + 3}
+        width={labelWidth}
+        height={fontSize + 8}
+        fill="#fff"
+        stroke="none"
+      />
+      <text
+        x={labelX}
+        y={labelY}
+        fill={LINE_COLOR}
+        stroke="none"
+        fontFamily={DRAWING_FONT}
+        fontSize={fontSize}
+        textAnchor="middle"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
+function OutInLabel({ x, y }: { x: number; y: number }) {
+  const fontSize = 21;
+
+  return (
+    <g stroke={LINE_COLOR} fill={LINE_COLOR}>
+      <text
+        x={x}
+        y={y}
+        stroke="none"
+        fontFamily={DRAWING_FONT}
+        fontSize={fontSize}
+        textAnchor="middle"
+      >
+        OUT
+      </text>
+      <line x1={x - 26} y1={y + 8} x2={x + 26} y2={y + 8} strokeWidth={1.3} />
+      <text
+        x={x}
+        y={y + 30}
+        stroke="none"
+        fontFamily={DRAWING_FONT}
+        fontSize={fontSize}
+        textAnchor="middle"
+      >
+        IN
+      </text>
     </g>
   );
 }
 
 function getSafePanelCount(panelCount: number) {
   return clamp(Math.round(panelCount) || 1, 1, MAX_FOLDING_PANELS);
+}
+
+function getFoldingHandlesByDoorNumber(
+  folding: FoldingDoorConfig | undefined,
+  totalPanels: number,
+  leftPanels: number
+) {
+  const handles = new Map<number, HandleSide>();
+
+  if (folding?.handles?.length) {
+    folding.handles.forEach((handle) => {
+      const doorNumber = Math.round(handle.doorNumber);
+
+      if (doorNumber >= 1 && doorNumber <= totalPanels && handles.size < 2) {
+        handles.set(doorNumber, handle.side === "left" ? "left" : "right");
+      }
+    });
+
+    return handles;
+  }
+
+  (folding?.handleDoorNumbers ?? []).forEach((doorNumber) => {
+    const safeDoorNumber = Math.round(doorNumber);
+
+    if (safeDoorNumber >= 1 && safeDoorNumber <= totalPanels && handles.size < 2) {
+      handles.set(safeDoorNumber, safeDoorNumber <= leftPanels ? "right" : "left");
+    }
+  });
+
+  return handles;
 }
 
 function clamp(value: number, min: number, max: number) {
