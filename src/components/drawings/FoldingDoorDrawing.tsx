@@ -603,6 +603,19 @@ function FoldAccordionMark({
   strokeColor?: string;
 }) {
   const safePanelCount = Math.max(Math.round(panelCount), 1);
+
+  if (safePanelCount === 1) {
+    return (
+      <SingleSwingMark
+        x={x}
+        y={y}
+        direction={direction}
+        anchor={anchor}
+        strokeColor={strokeColor}
+      />
+    );
+  }
+
   const segmentWidth = FOLD_ACCORDION_SEGMENT_WIDTH;
   const segmentHeight = 26;
   const pathWidth = segmentWidth * safePanelCount;
@@ -632,9 +645,65 @@ function FoldAccordionMark({
 }
 
 const FOLD_ACCORDION_SEGMENT_WIDTH = 14;
+const SINGLE_SWING_MARK_WIDTH = 36;
 
 function getFoldAccordionWidth(panelCount: number) {
-  return Math.max(Math.round(panelCount), 0) * FOLD_ACCORDION_SEGMENT_WIDTH;
+  const safePanelCount = Math.max(Math.round(panelCount), 0);
+
+  return safePanelCount === 1
+    ? SINGLE_SWING_MARK_WIDTH
+    : safePanelCount * FOLD_ACCORDION_SEGMENT_WIDTH;
+}
+
+function SingleSwingMark({
+  x,
+  y,
+  direction,
+  anchor,
+  strokeColor,
+}: {
+  x: number;
+  y: number;
+  direction: "left" | "right";
+  anchor: "center" | "edge";
+  strokeColor: string;
+}) {
+  const width = SINGLE_SWING_MARK_WIDTH;
+  const height = 26;
+  const startX =
+    anchor === "edge"
+      ? direction === "left"
+        ? x
+        : x - width
+      : x - width / 2;
+  const endX = startX + width;
+  const topY = y;
+  const baseY = y + height;
+  const footLength = 8;
+
+  if (direction === "right") {
+    const jambX = endX - footLength;
+    const stopX = startX + footLength;
+
+    return (
+      <g stroke={strokeColor} strokeWidth={1.7} fill="none" strokeLinecap="square">
+        <path d={`M ${jambX} ${baseY} V ${topY} H ${jambX + footLength}`} />
+        <path d={`M ${jambX} ${baseY} Q ${stopX} ${baseY - 4} ${stopX} ${topY}`} />
+        <path d={`M ${stopX - footLength} ${topY} H ${stopX}`} />
+      </g>
+    );
+  }
+
+  const jambX = startX + footLength;
+  const stopX = endX - footLength;
+
+  return (
+    <g stroke={strokeColor} strokeWidth={1.7} fill="none" strokeLinecap="square">
+      <path d={`M ${jambX} ${baseY} V ${topY} H ${jambX - footLength}`} />
+      <path d={`M ${jambX} ${baseY} Q ${stopX} ${baseY - 4} ${stopX} ${topY}`} />
+      <path d={`M ${stopX} ${topY} H ${stopX + footLength}`} />
+    </g>
+  );
 }
 
 function GlassMark({
