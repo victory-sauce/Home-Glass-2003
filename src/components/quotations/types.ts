@@ -16,6 +16,7 @@ export type QuoteItemKind = "sliding" | "folding";
 export type TrackCount = 1 | 2 | 3 | 4;
 
 export type DoorMotion = "fixed" | "slidesLeft" | "slidesRight";
+export type HandleSide = "left" | "right";
 
 export type DoorConfig = {
   id: string;
@@ -23,11 +24,17 @@ export type DoorConfig = {
   motion: DoorMotion;
 };
 
+export type FoldingHandleConfig = {
+  doorNumber: number;
+  side: HandleSide;
+};
+
 export type FoldingDoorConfig = {
   totalPanels: number;
   leftPanels: number;
   rightPanels: number;
   handleDoorNumbers: number[];
+  handles?: FoldingHandleConfig[];
 };
 
 export type QuoteItem = {
